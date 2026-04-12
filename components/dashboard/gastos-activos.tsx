@@ -1,8 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Gasto, Pago, Categoria } from '@/lib/types'
-import { CreditCard } from 'lucide-react'
 import Link from 'next/link'
 
 interface Props {
@@ -12,63 +8,65 @@ interface Props {
 }
 
 export function GastosActivos({ gastos, pagos, categorias }: Props) {
-  if (gastos.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-indigo-600" />
-            Gastos activos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">No hay gastos activos. ¡Agregá uno!</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-indigo-600" />
+    <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Gastos activos
-          <Badge variant="secondary" className="ml-auto">{gastos.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {gastos.map(gasto => {
-          const gastoPagos = pagos.filter(p => p.gasto_id === gasto.id)
-          const pagados = gastoPagos.filter(p => p.estado === 'pagado').length
-          const total = gastoPagos.length || gasto.cuotas
-          const progreso = total > 0 ? (pagados / total) * 100 : 0
-          const cat = categorias.find(c => c.nombre === gasto.categoria)
+        </p>
+        {gastos.length > 0 && (
+          <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+            {gastos.length}
+          </span>
+        )}
+      </div>
 
-          return (
-            <Link key={gasto.id} href={`/gastos/${gasto.id}`}>
-              <div className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{cat?.icono || '📦'}</span>
-                      <p className="text-sm font-medium truncate">{gasto.descripcion}</p>
+      {gastos.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No hay gastos activos. ¡Agregá uno!</p>
+      ) : (
+        <div className="space-y-1">
+          {gastos.map(gasto => {
+            const gastoPagos = pagos.filter(p => p.gasto_id === gasto.id)
+            const pagados = gastoPagos.filter(p => p.estado === 'pagado').length
+            const total = gastoPagos.length || gasto.cuotas
+            const pct = total > 0 ? (pagados / total) * 100 : 0
+            const cat = categorias.find(c => c.nombre === gasto.categoria)
+            const simbolo = gasto.moneda === 'USD' ? 'U$S' : '$'
+
+            return (
+              <Link key={gasto.id} href={`/gastos/${gasto.id}`}>
+                <div className="p-3 rounded-xl hover:bg-muted/50 transition-colors group space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base leading-none flex-shrink-0">{cat?.icono || '📦'}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{gasto.descripcion}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
+                          {gasto.categoria}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{gasto.categoria}</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        {simbolo} {gasto.monto_total.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{pagados}/{total} cuotas</p>
+                    </div>
                   </div>
-                  <div className="text-right ml-3">
-                    <p className="text-sm font-semibold">${gasto.monto_total.toLocaleString('es-AR')}</p>
-                    <p className="text-xs text-muted-foreground">{pagados}/{total} cuotas</p>
-                  </div>
+                  {gasto.cuotas > 1 && (
+                    <div className="h-0.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary/60 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
-                {gasto.cuotas > 1 && (
-                  <Progress value={progreso} className="h-1.5" />
-                )}
-              </div>
-            </Link>
-          )
-        })}
-      </CardContent>
-    </Card>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

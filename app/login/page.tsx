@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoginButton } from '@/components/login-button'
 
 export default async function LoginPage({
@@ -14,24 +13,24 @@ export default async function LoginPage({
   const { error } = await searchParams
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center space-y-2">
-          <div className="text-4xl mb-2">💸</div>
-          <CardTitle className="text-2xl">Gastos Compartidos</CardTitle>
-          <CardDescription>
-            Solo para nosotros dos. Iniciá sesión con tu cuenta de Google.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="w-full max-w-sm space-y-8">
+        {/* Wordmark */}
+        <div className="text-center space-y-2">
+          <h1 className="font-display italic text-5xl text-foreground tracking-tight">gastos</h1>
+          <p className="text-sm text-muted-foreground">solo para nosotros dos</p>
+        </div>
+
+        {/* Card */}
+        <div className="rounded-2xl bg-card border border-border p-6 space-y-4">
           {error && (
-            <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="rounded-xl bg-red-400/10 border border-red-400/20 px-3 py-2.5 text-sm text-red-400">
               No se pudo iniciar sesión. Intentá de nuevo.
             </div>
           )}
           <LoginButton />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

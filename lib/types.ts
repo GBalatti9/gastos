@@ -1,3 +1,6 @@
+export type TipoDivision = '50/50' | 'porcentaje' | 'monto_fijo'
+export type Moneda = 'ARS' | 'USD'
+
 export interface Gasto {
   id: string
   descripcion: string
@@ -10,6 +13,10 @@ export interface Gasto {
   categoria: string
   notas: string
   estado: 'activo' | 'cancelado'
+  moneda: Moneda
+  tipo_division: TipoDivision
+  division_valor: string // vacío para 50/50, "70" para porcentaje, "15000" para monto_fijo
+  recurrente: boolean
 }
 
 export interface Pago {
@@ -37,6 +44,19 @@ export interface SaldoData {
   deudor: string // email
   acreedor: string // email
   monto_deuda: number
+  moneda: Moneda
+}
+
+export interface Cierre {
+  id: string
+  mes: string // formato: 2026-04
+  saldo_user1: number
+  saldo_user2: number
+  deuda_final: number
+  deudor: string // email
+  acreedor: string // email
+  fecha_cierre: string // ISO date
+  moneda: Moneda
 }
 
 export interface ProximoVencimiento {
@@ -55,6 +75,12 @@ export interface ResumenMes {
 export interface GastoConPagos extends Gasto {
   pagos: Pago[]
   categoria_info?: Categoria
+}
+
+export interface TipoCambio {
+  fecha: string // YYYY-MM-DD
+  valor: number
+  fuente: 'bna' | 'manual'
 }
 
 export interface NotificacionPayload {

@@ -1,23 +1,29 @@
 import { auth } from '@/lib/auth'
-import { getGastos, getPagos, getCategorias } from '@/lib/google-sheets'
+import { getGastos, getPagos, getCategorias, getCierres } from '@/lib/google-sheets'
 import { calcularSaldo } from '@/lib/saldo'
 import { SaldoCard } from '@/components/dashboard/saldo-card'
 import { ProximosVencimientos } from '@/components/dashboard/proximos-vencimientos'
 import { ResumenMes } from '@/components/dashboard/resumen-mes'
 import { GastosActivos } from '@/components/dashboard/gastos-activos'
-import { getUserByEmail, getUsers } from '@/lib/users'
+import { CierreMes } from '@/components/dashboard/cierre-mes'
+import { getUsers } from '@/lib/users'
+import { format } from 'date-fns'
 
 export const revalidate = 60
 
 export default async function DashboardPage() {
   const session = await auth()
-  const [gastos, pagos, categorias] = await Promise.all([
+  const usuarioEmail = session?.user?.email || ''
+
+  const [gastos, pagos, categorias, cierres] = await Promise.all([
     getGastos(),
     getPagos(),
     getCategorias(),
+    getCierres(),
   ])
 
-  const saldo = calcularSaldo(pagos)
+  const saldoARS = calcularSaldo(pagos, gastos, 'ARS')
+  const saldoUSD = calcularSaldo(pagos, gastos, 'USD')
   const [u1, u2] = getUsers()
 
   const hoy = new Date()
@@ -49,12 +55,26 @@ export default async function DashboardPage() {
     return f >= inicioMes && f <= finMes
   })
 
-  const totalMes = pagosMes.reduce((s, p) => s + p.monto, 0)
-  const u1PagoMes = pagosMes.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
-  const u2PagoMes = pagosMes.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
+  // ARS
+  const pagosMesARS = pagosMes.filter(p => {
+    const g = gastos.find(g => g.id === p.gasto_id)
+    return (g?.moneda || 'ARS') === 'ARS'
+  })
+  const totalMesARS = pagosMesARS.reduce((s, p) => s + p.monto, 0)
+  const u1PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
+  const u2PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
+
+  // USD
+  const pagosMesUSD = pagosMes.filter(p => {
+    const g = gastos.find(g => g.id === p.gasto_id)
+    return g?.moneda === 'USD'
+  })
+  const totalMesUSD = pagosMesUSD.reduce((s, p) => s + p.monto, 0)
+  const u1PagoMesUSD = pagosMesUSD.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
+  const u2PagoMesUSD = pagosMesUSD.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
 
   const porCategoria = categorias.map(cat => {
-    const total = pagosMes
+    const total = pagosMesARS
       .filter(p => {
         const g = gastos.find(g => g.id === p.gasto_id)
         return g?.categoria === cat.nombre
@@ -64,17 +84,35 @@ export default async function DashboardPage() {
   }).filter(c => c.total > 0)
 
   const gastosActivos = gastos.filter(g => g.estado === 'activo')
+  const mesActual = format(hoy, 'yyyy-MM')
 
   return (
-    <div className="py-6 space-y-6">
-      <SaldoCard saldo={saldo} />
-      <ProximosVencimientos proximos={proximos} />
-      <ResumenMes
-        total={totalMes}
-        porCategoria={porCategoria}
-        user1={{ ...u1, pagado: u1PagoMes }}
-        user2={{ ...u2, pagado: u2PagoMes }}
+    <div className="py-6 space-y-4">
+      <SaldoCard
+        saldoARS={saldoARS}
+        saldoUSD={saldoUSD}
+        usuarioEmail={usuarioEmail}
       />
+
+      <ProximosVencimientos proximos={proximos} />
+
+      <ResumenMes
+        total={totalMesARS}
+        porCategoria={porCategoria}
+        user1={{ ...u1, pagado: u1PagoMesARS }}
+        user2={{ ...u2, pagado: u2PagoMesARS }}
+        totalUSD={totalMesUSD}
+        user1USD={{ pagado: u1PagoMesUSD }}
+        user2USD={{ pagado: u2PagoMesUSD }}
+      />
+
+      <CierreMes
+        cierres={cierres}
+        saldoARS={saldoARS}
+        saldoUSD={saldoUSD}
+        mesActual={mesActual}
+      />
+
       <GastosActivos gastos={gastosActivos} pagos={pagos} categorias={categorias} />
     </div>
   )

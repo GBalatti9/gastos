@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     descripcion, monto_total, pagado_por, cuotas,
-    fecha_inicio, dia_vencimiento, categoria, notas
+    fecha_inicio, categoria, notas,
+    moneda, tipo_division, division_valor, recurrente
   } = body
 
   const gasto = await createGasto({
@@ -28,20 +29,23 @@ export async function POST(req: NextRequest) {
     cuotas: parseInt(cuotas) || 1,
     cuota_actual: 0,
     fecha_inicio,
-    dia_vencimiento: parseInt(dia_vencimiento) || 1,
+    dia_vencimiento: 1,
     categoria,
     notas: notas || '',
     estado: 'activo',
+    moneda: moneda || 'ARS',
+    tipo_division: tipo_division || '50/50',
+    division_valor: division_valor || '',
+    recurrente: recurrente === 'si',
   })
 
   // Generate payment rows
   const numCuotas = parseInt(cuotas) || 1
   const montoPorCuota = parseFloat(monto_total) / numCuotas
-  const diaVenc = parseInt(dia_vencimiento) || 1
   const fechaBase = new Date(fecha_inicio)
 
   const pagos = Array.from({ length: numCuotas }, (_, i) => {
-    const fechaVenc = setDate(addMonths(fechaBase, i), diaVenc)
+    const fechaVenc = setDate(addMonths(fechaBase, i), 1)
     return {
       gasto_id: gasto.id,
       numero_cuota: i + 1,
