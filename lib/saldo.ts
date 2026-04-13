@@ -31,18 +31,19 @@ function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: number;
 
 export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = 'ARS'): SaldoData {
   const [u1, u2] = getUsers()
-  const pagados = pagos.filter(p => p.estado === 'pagado')
 
-  // Gastos filtrados por moneda
-  const gastosFiltrados = gastos.filter(g => (g.moneda || 'ARS') === moneda)
+  // Incluir todos los pagos activos (pendientes y pagados)
+  // Para pendientes, el pagador es quien figura en el gasto (gasto.pagado_por)
+  // Para pagados, el pagador es quien realmente lo abonó (pago.pagado_por)
+  const gastosFiltrados = gastos.filter(g => (g.moneda || 'ARS') === moneda && g.estado === 'activo')
   const gastoIds = new Set(gastosFiltrados.map(g => g.id))
 
-  let debeU1 = 0 // lo que U1 debería haber pagado en total
+  let debeU1 = 0
   let debeU2 = 0
-  let pagoU1 = 0 // lo que U1 efectivamente pagó
+  let pagoU1 = 0
   let pagoU2 = 0
 
-  for (const pago of pagados) {
+  for (const pago of pagos) {
     const gasto = gastos.find(g => g.id === pago.gasto_id)
     if (!gasto || !gastoIds.has(gasto.id)) continue
 
@@ -50,8 +51,9 @@ export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = '
     debeU1 += resp1
     debeU2 += resp2
 
-    if (pago.pagado_por === u1.email) pagoU1 += pago.monto
-    else if (pago.pagado_por === u2.email) pagoU2 += pago.monto
+    const pagador = pago.pagado_por || gasto.pagado_por
+    if (pagador === u1.email) pagoU1 += pago.monto
+    else if (pagador === u2.email) pagoU2 += pago.monto
   }
 
   // diferencia = cuánto pagó U1 vs cuánto debía pagar

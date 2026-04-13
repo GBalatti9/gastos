@@ -218,19 +218,23 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm">${pago.monto.toLocaleString('es-AR')}</span>
                     {gasto.estado === 'activo' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => marcarComoPagado(pago)}
-                        disabled={loadingPago === pago.id}
-                        className="h-8"
-                      >
-                        {loadingPago === pago.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          'Pagar'
-                        )}
-                      </Button>
+                      usuarioEmail === gasto.pagado_por ? (
+                        <span className="text-xs text-muted-foreground italic">esperando pago</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => marcarComoPagado(pago)}
+                          disabled={loadingPago === pago.id}
+                          className="h-8"
+                        >
+                          {loadingPago === pago.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            'Pagué mi parte'
+                          )}
+                        </Button>
+                      )
                     )}
                   </div>
                 </div>
