@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Gastos — rediseño</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #E8E0D0; font-family: 'Inter', system-ui, sans-serif; }
+  body {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 16px 80px; box-sizing: border-box;
+    background: radial-gradient(ellipse at top, #EFE5D0 0%, #D9CFBB 100%);
+  }
+  .intro {
+    max-width: 420px; text-align: center; margin-bottom: 28px; color: #3a2d21;
+  }
+  .intro h1 {
+    font-family: 'Cormorant Garamond', serif; font-style: italic;
+    font-size: 28px; font-weight: 500; margin: 0 0 6px;
+    color: #8B5E3C;
+  }
+  .intro p { font-size: 13px; line-height: 1.5; margin: 0; color: #5C4A3E; opacity: 0.85; }
+  .nav {
+    display: inline-flex; gap: 6px; background: rgba(255,255,255,0.5);
+    padding: 4px; border-radius: 10px; margin-top: 16px;
+    border: 1px solid rgba(42,31,23,0.08);
+  }
+  .nav button {
+    border: none; background: transparent; cursor: pointer;
+    padding: 8px 14px; border-radius: 7px;
+    font-size: 12px; font-weight: 600; color: #5C4A3E; font-family: Inter, sans-serif;
+    letter-spacing: 0.2px;
+  }
+  .nav button.on { background: #2A1F17; color: #F5F1E8; }
+  #root { display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <h1>gastos</h1>
+    <p>Rediseño: tabs de período separados, form más compacto con monto hero y acciones organizadas.</p>
+    <div class="nav" id="nav">
+      <button data-s="home" class="on">Inicio</button>
+      <button data-s="list">Gastos</button>
+      <button data-s="new">Nuevo</button>
+      <button data-s="cfg">Ajustes</button>
+    </div>
+  </div>
+  <div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="app.jsx"></script>
+<script type="text/babel">
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+
+  // reflect current screen in the top nav
+  function syncNav() {
+    const cur = localStorage.getItem('gastos.screen') || 'home';
+    document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.s === cur));
+  }
+
+  // initial render
+  root.render(<App onScreenChange={syncNav}/>);
+  syncNav();
+
+  // external navigation: force remount with a changing key so App re-reads localStorage
+  let renderKey = 0;
+  document.querySelectorAll('#nav button').forEach(b => {
+    b.onclick = () => {
+      localStorage.setItem('gastos.screen', b.dataset.s);
+      syncNav();
+      root.render(<App key={++renderKey} onScreenChange={syncNav}/>);
+    };
+  });
+</script>
+</body>
+</html>

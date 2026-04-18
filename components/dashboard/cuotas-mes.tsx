@@ -1,7 +1,6 @@
 import { Gasto, Pago, TarjetaCredito } from '@/lib/types'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, Circle, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 
 interface Props {
@@ -13,8 +12,11 @@ interface Props {
 export function CuotasMes({ pagos, gastos, tarjetas }: Props) {
   if (pagos.length === 0) {
     return (
-      <div className="rounded-2xl bg-card border border-border p-5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+      <div
+        className="rounded-[20px] bg-card border border-border px-[22px] py-5"
+        style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
           Cuotas del mes
         </p>
         <p className="text-sm text-muted-foreground text-center py-4">
@@ -26,90 +28,97 @@ export function CuotasMes({ pagos, gastos, tarjetas }: Props) {
 
   const pendientes = pagos.filter(p => p.estado === 'pendiente')
   const pagados = pagos.filter(p => p.estado === 'pagado')
+  const totalPendiente = pendientes.reduce((s, p) => s + p.monto, 0)
+
+  const mostrar = [...pendientes, ...pagados].slice(0, 5)
 
   return (
-    <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        Cuotas del mes
-      </p>
+    <div
+      className="rounded-[20px] bg-card border border-border overflow-hidden"
+      style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+    >
+      {/* Header */}
+      <div className="px-[22px] pt-5 pb-3 flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
+          Cuotas del mes
+        </p>
+        <Link
+          href="/gastos"
+          className="text-[12px] font-semibold"
+          style={{ color: '#8B5E3C' }}
+        >
+          Ver todas
+        </Link>
+      </div>
 
+      {/* Subtitle: pending count + total */}
       {pendientes.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-orange-600">
-            {pendientes.length} pendiente{pendientes.length > 1 ? 's' : ''}
+        <div className="px-[22px] pb-3">
+          <p className="text-[13px] font-semibold" style={{ color: '#D97A4E' }}>
+            {pendientes.length} pendiente{pendientes.length > 1 ? 's' : ''} · $
+            {Math.round(totalPendiente).toLocaleString('es-AR')}
           </p>
-          {pendientes.map(pago => {
-            const gasto = gastos.find(g => g.id === pago.gasto_id)
-            if (!gasto) return null
-            const tarjeta = gasto.tarjeta_id ? tarjetas.find(t => t.id === gasto.tarjeta_id) : null
-            return (
-              <Link
-                key={pago.id}
-                href={`/gastos/${gasto.id}`}
-                className="flex items-center justify-between p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30 hover:border-orange-200 dark:hover:border-orange-800/40 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <Circle className="h-4 w-4 text-orange-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{gasto.descripcion}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cuota {pago.numero_cuota}/{gasto.cuotas}
-                      {' · '}
-                      Vence {format(new Date(pago.fecha_vencimiento), "d MMM", { locale: es })}
-                      {tarjeta && (
-                        <span className="inline-flex items-center gap-1 ml-1.5">
-                          <CreditCard className="h-3 w-3" />
-                          {tarjeta.nombre}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <span className="font-semibold text-sm whitespace-nowrap">
-                  {gasto.moneda === 'USD' ? 'U$S ' : '$'}
-                  {pago.monto.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                </span>
-              </Link>
-            )
-          })}
         </div>
       )}
 
-      {pagados.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-emerald-600">
-            {pagados.length} pagada{pagados.length > 1 ? 's' : ''}
-          </p>
-          {pagados.map(pago => {
-            const gasto = gastos.find(g => g.id === pago.gasto_id)
-            if (!gasto) return null
-            return (
-              <Link
-                key={pago.id}
-                href={`/gastos/${gasto.id}`}
-                className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-800/40 transition-colors"
+      {/* Rows */}
+      <div>
+        {mostrar.map(pago => {
+          const gasto = gastos.find(g => g.id === pago.gasto_id)
+          if (!gasto) return null
+          const esPagado = pago.estado === 'pagado'
+          return (
+            <Link key={pago.id} href={`/gastos/${gasto.id}`}>
+              <div
+                className="flex items-center justify-between px-4 py-[14px] border-t border-border transition-colors hover:bg-muted/30"
+                style={{ opacity: esPagado ? 0.5 : 1 }}
               >
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{gasto.descripcion}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cuota {pago.numero_cuota}/{gasto.cuotas}
-                      {pago.fecha_pago && (
-                        <> · Pagado {format(new Date(pago.fecha_pago), "d MMM", { locale: es })}</>
-                      )}
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Circular checkbox */}
+                  {esPagado ? (
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: '#5E7A3C' }}
+                    >
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <path
+                          d="M1 4l3 3 5-6"
+                          stroke="white"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div
+                      className="w-5 h-5 rounded-full border-2 flex-shrink-0"
+                      style={{ borderColor: '#D97A4E' }}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className={`text-[15px] font-semibold text-foreground truncate ${esPagado ? 'line-through' : ''}`}>
+                      {gasto.descripcion}
+                    </p>
+                    <p className="text-[12px] text-muted-foreground">
+                      Cuota {pago.numero_cuota}/{gasto.cuotas} · Vence{' '}
+                      {format(new Date(pago.fecha_vencimiento), 'd MMM', { locale: es })}
                     </p>
                   </div>
                 </div>
-                <span className="font-semibold text-sm text-emerald-700 whitespace-nowrap">
+                <span
+                  className={`text-[15px] font-semibold flex-shrink-0 ml-3 ${
+                    esPagado ? 'text-muted-foreground line-through' : 'text-foreground'
+                  }`}
+                >
                   {gasto.moneda === 'USD' ? 'U$S ' : '$'}
                   {pago.monto.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                 </span>
-              </Link>
-            )
-          })}
-        </div>
-      )}
+              </div>
+            </Link>
+          )
+        })}
+      </div>
     </div>
   )
 }

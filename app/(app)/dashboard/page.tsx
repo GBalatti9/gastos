@@ -117,11 +117,10 @@ export default async function DashboardPage({
 
   return (
     <div className="py-6 space-y-4">
-      <MonthNavigator mes={mesSeleccionado} />
-
       <DashboardTabs
         mesContent={
           <>
+            <MonthNavigator mes={mesSeleccionado} />
             <SaldoMesCard
               saldoARS={saldoMesARS}
               saldoUSD={saldoMesUSD}
@@ -152,6 +151,7 @@ export default async function DashboardPage({
               saldoARS={saldoARS}
               saldoUSD={saldoUSD}
               usuarioEmail={usuarioEmail}
+              cierres={cierres}
             />
 
             <ProximosVencimientos proximos={proximos} />

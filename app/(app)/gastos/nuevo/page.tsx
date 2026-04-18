@@ -12,12 +12,12 @@ export default async function NuevoGastoPage() {
 
   return (
     <div className="py-6">
-      <h1 className="text-xl font-bold mb-6">Nuevo gasto</h1>
       <NuevoGastoForm
         categorias={categorias}
         tarjetas={allTarjetas.filter(t => t.owner_email === email)}
         usuarioEmail={email}
         usuarioNombre={usuario?.nombre || session?.user?.name || ''}
+        otroUsuarioEmail={otroUsuario?.email || ''}
         otroUsuarioNombre={otroUsuario?.nombre || ''}
       />
     </div>

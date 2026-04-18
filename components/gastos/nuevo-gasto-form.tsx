@@ -4,44 +4,25 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Categoria, TarjetaCredito } from '@/lib/types'
 import { calcularFechaVencimientoCuota } from '@/lib/billing-cycle'
-import { Loader2, RefreshCw, Plus, Check, CreditCard } from 'lucide-react'
+import { Loader2, ChevronLeft, CreditCard, Plus } from 'lucide-react'
 import { es } from 'date-fns/locale'
+import { cn } from '@/lib/utils'
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
   categorias: Categoria[]
   tarjetas: TarjetaCredito[]
   usuarioEmail: string
   usuarioNombre: string
+  otroUsuarioEmail: string
   otroUsuarioNombre: string
 }
 
-// ─── Utilidades ───────────────────────────────────────────────────────────────
-
-const COLORES_PRESET = [
-  '#ef4444', '#f97316', '#f59e0b', '#22c55e',
-  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
-  '#6b7280', '#e8a020',
-]
-
-const ICONOS_PRESET = [
-  '🏠', '🛒', '💡', '🍽️', '🚗', '💊', '🎬', '👕',
-  '✈️', '📦', '🐾', '🎓', '💻', '🏋️', '🎵', '📱',
-]
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function calcularSplitCuota(
   montoCuota: number,
@@ -60,17 +41,75 @@ function calcularSplitCuota(
       if (yoSoyPagador) return { yo: montoCuota - fijo, otro: fijo }
       return { yo: fijo, otro: montoCuota - fijo }
     }
-    default: // 50/50
+    default:
       return { yo: montoCuota / 2, otro: montoCuota / 2 }
   }
 }
 
-function fmt(n: number, moneda: string) {
+function fmtARS(n: number): string {
+  return '$ ' + Math.round(n).toLocaleString('es-AR')
+}
+
+function fmt(n: number, moneda: string): string {
   const simbolo = moneda === 'USD' ? 'U$S ' : '$'
   return simbolo + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-// ─── Sub-componente: Crear categoría inline ───────────────────────────────────
+// ─── Nueva Categoría inline ───────────────────────────────────────────────────
+
+const ICONOS_GRUPOS: { label: string; iconos: string[] }[] = [
+  {
+    label: 'Hogar',
+    iconos: ['🏠', '🏡', '🏢', '🏗️', '🛋️', '🛏️', '🚪', '🪟', '🪴', '🔑', '🔒', '🧹', '🪣', '🛠️', '🪚', '🔧'],
+  },
+  {
+    label: 'Comida',
+    iconos: ['🛒', '🥦', '🥕', '🍎', '🥩', '🐟', '🥚', '🧃', '☕', '🍺', '🍷', '🥐', '🍕', '🍔', '🍜', '🥗'],
+  },
+  {
+    label: 'Restaurantes',
+    iconos: ['🍽️', '🥡', '🍱', '🌮', '🍣', '🍦', '🧁', '🍰', '🫕', '🥘', '🍳', '🫙'],
+  },
+  {
+    label: 'Transporte',
+    iconos: ['🚗', '🚕', '🚌', '🚆', '🚇', '✈️', '🛵', '🚲', '🛺', '⛽', '🅿️', '🗺️'],
+  },
+  {
+    label: 'Servicios',
+    iconos: ['💡', '💧', '🔥', '🌐', '📡', '📺', '📱', '💻', '🖨️', '🔌', '📶', '🗑️'],
+  },
+  {
+    label: 'Salud',
+    iconos: ['💊', '🏥', '🩺', '💉', '🩹', '🧴', '🦷', '👓', '🩻', '🧠', '🫀', '🌡️'],
+  },
+  {
+    label: 'Ocio',
+    iconos: ['🎬', '🎮', '🎵', '🎭', '🎨', '📚', '🏋️', '⚽', '🎾', '🏊', '🎲', '🎉', '🎸', '🎯', '🏄', '🧗'],
+  },
+  {
+    label: 'Ropa',
+    iconos: ['👕', '👗', '👔', '👟', '👠', '👜', '🧢', '🧥', '👒', '💍', '⌚', '🕶️'],
+  },
+  {
+    label: 'Mascotas',
+    iconos: ['🐾', '🐕', '🐈', '🦜', '🐠', '🐇', '🦴', '🐾', '🏡', '🧸'],
+  },
+  {
+    label: 'Educación',
+    iconos: ['🎓', '📚', '🖊️', '🏫', '📐', '🔬', '🎒', '📝', '🖥️', '📖'],
+  },
+  {
+    label: 'Finanzas',
+    iconos: ['💰', '💳', '🏦', '📊', '📈', '💸', '🪙', '🏧', '🧾', '📉'],
+  },
+  {
+    label: 'Varios',
+    iconos: ['📦', '🎁', '🌟', '❤️', '💼', '🧳', '🔮', '⭐', '🪐', '🌈', '☀️', '🌙'],
+  },
+]
+
+const ICONOS_PRESET = ICONOS_GRUPOS.flatMap(g => g.iconos)
+const COLORES_PRESET = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#e8a020']
 
 function NuevaCategoriaInline({
   onCreada,
@@ -105,39 +144,44 @@ function NuevaCategoriaInline({
   }
 
   return (
-    <div className="p-4 space-y-3 border-t border-border bg-muted/30">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+    <div className="col-span-4 rounded-[12px] border border-border bg-muted/30 p-4 space-y-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
         Nueva categoría
       </p>
-
       <Input
         placeholder="Nombre..."
         value={nombre}
         onChange={e => setNombre(e.target.value)}
-        className="bg-background border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
+        className="h-8 text-sm bg-background border-border"
         autoFocus
       />
-
-      {/* Icono */}
       <div>
         <p className="text-[10px] text-muted-foreground mb-1.5">Ícono</p>
-        <div className="flex flex-wrap gap-1.5">
-          {ICONOS_PRESET.map(e => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setIcono(e)}
-              className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-colors ${
-                icono === e ? 'bg-primary/20 ring-1 ring-primary' : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              {e}
-            </button>
+        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+          {ICONOS_GRUPOS.map(grupo => (
+            <div key={grupo.label}>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                {grupo.label}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {grupo.iconos.map(e => (
+                  <button
+                    key={grupo.label + e}
+                    type="button"
+                    onClick={() => setIcono(e)}
+                    className={cn(
+                      'w-8 h-8 rounded-lg text-base flex items-center justify-center transition-colors',
+                      icono === e ? 'bg-primary/20 ring-1 ring-primary' : 'bg-muted hover:bg-muted/80'
+                    )}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
-
-      {/* Color */}
       <div>
         <p className="text-[10px] text-muted-foreground mb-1.5">Color</p>
         <div className="flex flex-wrap gap-1.5">
@@ -146,55 +190,46 @@ function NuevaCategoriaInline({
               key={c}
               type="button"
               onClick={() => setColor(c)}
-              className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-              style={{ backgroundColor: c }}
-            >
-              {color === c && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-            </button>
+              className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+              style={{
+                backgroundColor: c,
+                borderColor: color === c ? 'rgba(42,31,23,0.5)' : 'transparent',
+              }}
+            />
           ))}
         </div>
       </div>
-
       <div className="flex gap-2">
-        <Button
+        <button
           type="button"
-          size="sm"
-          className="flex-1 h-8 bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
           onClick={handleCrear}
           disabled={!nombre.trim() || loading}
+          className="flex-1 h-8 rounded-lg text-xs font-semibold bg-primary text-primary-foreground disabled:opacity-40"
         >
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : `${icono} Crear "${nombre || '...'}" `}
-        </Button>
-        <Button
+          {loading ? <Loader2 className="h-3 w-3 animate-spin mx-auto" /> : `${icono} Crear`}
+        </button>
+        <button
           type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs border-border text-muted-foreground"
           onClick={onCancelar}
+          className="h-8 px-3 rounded-lg text-xs font-medium border border-border text-muted-foreground"
         >
           Cancelar
-        </Button>
+        </button>
       </div>
     </div>
   )
 }
 
-// ─── Separador de sección ─────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 pt-2">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-        {children}
-      </p>
-      <div className="flex-1 h-px bg-border" />
-    </div>
-  )
-}
-
-// ─── Componente principal ─────────────────────────────────────────────��───────
-
-export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usuarioEmail, usuarioNombre, otroUsuarioNombre }: Props) {
+export function NuevoGastoForm({
+  categorias: categoriasIniciales,
+  tarjetas,
+  usuarioEmail,
+  usuarioNombre,
+  otroUsuarioEmail,
+  otroUsuarioNombre,
+}: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>(categoriasIniciales)
@@ -221,9 +256,8 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usua
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  // ─── Cálculo de preview ──────────────────────────────────────────────────
-
-  const montoTotal = parseFloat(form.monto_total) || 0
+  // ─── Calculations ───────────────────────────────────────────────────────
+  const montoTotal = parseFloat(form.monto_total.replace(/[^\d.,]/g, '').replace(',', '.')) || 0
   const numCuotas = parseInt(form.cuotas) || 1
   const montoCuota = montoTotal > 0 ? montoTotal / numCuotas : 0
   const yoSoyPagador = form.pagado_por === usuarioEmail
@@ -231,9 +265,6 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usua
   const split = montoCuota > 0
     ? calcularSplitCuota(montoCuota, form.tipo_division, form.division_valor, yoSoyPagador)
     : null
-
-  const pctYo = split && montoCuota > 0 ? Math.round((split.yo / montoCuota) * 100) : 0
-  const pctOtro = 100 - pctYo
 
   const tarjetaSeleccionada = form.metodo_pago === 'credito' && form.tarjeta_id
     ? tarjetas.find(t => t.id === form.tarjeta_id) || null
@@ -249,22 +280,15 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usua
     }
   }
 
-  function getVencimientoLabel(): string {
-    if (tarjetaSeleccionada) {
-      const fechaCompra = new Date(form.fecha_inicio)
-      const primera = calcularFechaVencimientoCuota(fechaCompra, 0, tarjetaSeleccionada)
-      return ` · primera cuota: ${format(primera, "d MMM yyyy", { locale: es })}`
-    }
-    return ' · vence el 1° de cada mes'
-  }
-
-  const primeraVencLabel = getPrimeraVencimientoLabel()
   const esCreditoConTarjeta = form.metodo_pago === 'credito' && !!tarjetaSeleccionada
+  const isCredito = form.metodo_pago === 'credito'
+
+  // CTA enabled when desc + monto + cat are set
+  const ctaEnabled = form.descripcion.trim() && form.monto_total && form.categoria
 
   // ─── Submit ──────────────────────────────────────────────────────────────
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     if (!form.descripcion || !form.monto_total || !form.categoria) {
       toast.error('Completá los campos obligatorios')
       return
@@ -300,101 +324,149 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usua
     }
   }
 
-  const inputCls = 'bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 focus-visible:border-primary/50'
-  const selectTriggerCls = 'bg-muted/50 border-border text-foreground'
+  // ─── Pago section options ────────────────────────────────────────────────
+  const pagadoPorOptions = [
+    { value: usuarioEmail, label: usuarioNombre },
+    { value: otroUsuarioEmail, label: otroUsuarioNombre },
+  ]
+
+  const metodoPagoOptions = [
+    { value: 'efectivo', label: 'Efectivo' },
+    { value: 'debito', label: 'Débito' },
+    { value: 'mercadopago', label: 'Mercadopago' },
+    { value: 'credito', label: 'Crédito' },
+  ]
+
+  const divisionOptions = [
+    { value: '50/50', label: '50 / 50' },
+    { value: 'porcentaje', label: 'Personalizada' },
+    { value: 'monto_fijo', label: `Monto fijo ${otroUsuarioNombre}` },
+  ]
+
+  // ─── Cuotas presets ──────────────────────────────────────────────────────
+  const cuotasPresets = [
+    { value: '1', label: '1 pago' },
+    { value: '3', label: '3×' },
+    { value: '6', label: '6×' },
+    { value: '12', label: '12×' },
+    { value: 'otro', label: 'Otro' },
+  ]
+  const presetValues = ['1', '3', '6', '12']
+  const isCustomCuotas = !presetValues.includes(form.cuotas)
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 py-6">
-
-      {/* ── Básico ───────────────────────────────────────────────────────── */}
+    <form onSubmit={handleSubmit} className="pb-28">
+      {/* Form header */}
+      <div className="flex items-center justify-between mb-6">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="flex items-center gap-0.5 text-[15px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="h-5 w-5" />
+          Cancelar
+        </button>
+        <span className="font-display italic text-[17px] font-semibold text-foreground whitespace-nowrap">
+          Nuevo gasto
+        </span>
+        <div className="w-[80px]" />
+      </div>
 
       <div className="space-y-4">
-        {/* Descripción */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Descripción *
-          </Label>
-          <Input
-            placeholder="Ej: Netflix, Alquiler, Supermercado..."
+        {/* ── Hero monto ──────────────────────────────────────────────────── */}
+        <div
+          className="rounded-[20px] bg-card border border-border p-[20px] space-y-3"
+          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
+            Monto
+          </p>
+
+          {/* Currency + amount row */}
+          <div className="flex items-center gap-3">
+            {/* ARS/USD pill toggle */}
+            <div className="flex rounded-full overflow-hidden border border-border flex-shrink-0">
+              {(['ARS', 'USD'] as const).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => set('moneda', m)}
+                  className={cn(
+                    'px-2.5 py-1 text-[11px] font-semibold transition-all',
+                    form.moneda === m
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            {/* Number input */}
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="0"
+              value={form.monto_total}
+              onChange={e => set('monto_total', e.target.value.replace(/[^\d.,]/g, ''))}
+              className="flex-1 font-display italic text-[44px] leading-none bg-transparent text-foreground placeholder:text-muted-foreground/40 outline-none w-0"
+              style={{ caretColor: '#8B5E3C' }}
+            />
+          </div>
+
+          {/* Description */}
+          <input
+            type="text"
+            placeholder="Descripción (ej. Netflix)"
             value={form.descripcion}
             onChange={e => set('descripcion', e.target.value)}
-            className={inputCls}
-            required
+            className="w-full text-[14px] text-center bg-muted rounded-[10px] py-2 px-3 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/30"
           />
         </div>
 
-        {/* Monto + Moneda */}
-        <div className="flex gap-3">
-          <div className="w-28 space-y-1.5 flex-shrink-0">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Moneda
-            </Label>
-            <Select value={form.moneda} onValueChange={v => v && set('moneda', v)}>
-              <SelectTrigger className={selectTriggerCls}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                <SelectItem value="ARS" className="text-foreground">🇦🇷 ARS</SelectItem>
-                <SelectItem value="USD" className="text-foreground">🇺🇸 USD</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Monto total *
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
-                {form.moneda === 'USD' ? 'U$S' : '$'}
-              </span>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                className={`${inputCls} pl-10`}
-                value={form.monto_total}
-                onChange={e => set('monto_total', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Categoría */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Categoría *
-          </Label>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <Select
-              value={form.categoria}
-              onValueChange={v => {
-                if (v === '__nueva__') {
-                  setMostrarNuevaCat(true)
-                } else if (v) {
-                  set('categoria', v)
-                  setMostrarNuevaCat(false)
-                }
-              }}
-            >
-              <SelectTrigger className={`${selectTriggerCls} border-0 rounded-none`}>
-                <SelectValue placeholder="Seleccioná una categoría" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                {categorias.map(c => (
-                  <SelectItem key={c.id} value={c.nombre} className="text-foreground">
-                    {c.icono} {c.nombre}
-                  </SelectItem>
-                ))}
-                <SelectItem value="__nueva__" className="text-primary font-medium">
-                  <span className="flex items-center gap-1.5">
-                    <Plus className="h-3.5 w-3.5" /> Nueva categoría
+        {/* ── Categoría ───────────────────────────────────────────────────── */}
+        <div
+          className="rounded-[20px] bg-card border border-border p-[20px]"
+          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground mb-3">
+            Categoría <span className="text-orange-alert">*</span>
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {categorias.map(cat => {
+              const isActive = form.categoria === cat.nombre
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => set('categoria', cat.nombre)}
+                  className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[10px] transition-all border"
+                  style={{
+                    backgroundColor: isActive ? `${cat.color}33` : `${cat.color}11`,
+                    borderColor: isActive ? cat.color : 'transparent',
+                  }}
+                >
+                  <span className="text-[20px] leading-none">{cat.icono}</span>
+                  <span className="text-[10.5px] font-medium text-foreground text-center leading-tight">
+                    {cat.nombre}
                   </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+                </button>
+              )
+            })}
+
+            {/* Add new category */}
+            {!mostrarNuevaCat && (
+              <button
+                type="button"
+                onClick={() => setMostrarNuevaCat(true)}
+                className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[10px] border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/30"
+              >
+                <Plus className="h-5 w-5" />
+                <span className="text-[10.5px] font-medium text-center leading-tight">Nueva</span>
+              </button>
+            )}
+
             {mostrarNuevaCat && (
               <NuevaCategoriaInline
                 onCreada={cat => {
@@ -408,280 +480,285 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usua
           </div>
         </div>
 
-        {/* Pagado por */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Pagado por
-          </Label>
-          <Select value={form.pagado_por} onValueChange={v => v && set('pagado_por', v)}>
-            <SelectTrigger className={selectTriggerCls}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value={usuarioEmail} className="text-foreground">
-                Yo ({usuarioNombre})
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+        {/* ── Pago ────────────────────────────────────────────────────────── */}
+        <div
+          className="rounded-[20px] bg-card border border-border p-[20px] space-y-4"
+          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
+            Pago
+          </p>
 
-      {/* ── División ───────────────────────────────────────���─────────────── */}
+          {/* Pagado por */}
+          <div className="space-y-2">
+            <p className="text-[12px] text-muted-foreground">Pagado por</p>
+            <div className="flex gap-2">
+              {pagadoPorOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set('pagado_por', opt.value)}
+                  className={cn(
+                    'flex-1 py-2 rounded-[10px] text-[13px] font-semibold transition-all',
+                    form.pagado_por === opt.value
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* ── Método de pago ────────────────────────────────────────────────── */}
+          {/* Método */}
+          <div className="space-y-2">
+            <p className="text-[12px] text-muted-foreground">Método</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {metodoPagoOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    set('metodo_pago', opt.value)
+                    if (opt.value !== 'credito') {
+                      set('tarjeta_id', '')
+                      set('carga_inmediata', 'si')
+                      set('cuotas', '1')
+                    } else {
+                      set('carga_inmediata', 'no')
+                    }
+                  }}
+                  className={cn(
+                    'py-2 rounded-[10px] text-[13px] font-semibold transition-all',
+                    form.metodo_pago === opt.value
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <SectionLabel>Método de pago</SectionLabel>
+          {/* División */}
+          <div className="space-y-2">
+            <p className="text-[12px] text-muted-foreground">División</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {divisionOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set('tipo_division', opt.value)}
+                  className={cn(
+                    'px-3 py-2 rounded-[10px] text-[13px] font-semibold transition-all',
+                    form.tipo_division === opt.value
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Pagado con
-          </Label>
-          <Select
-            value={form.metodo_pago}
-            onValueChange={v => {
-              if (!v) return
-              set('metodo_pago', v)
-              if (v !== 'credito') {
-                set('tarjeta_id', '')
-                set('carga_inmediata', 'si')
-                set('cuotas', '1')
-              } else {
-                set('carga_inmediata', 'no')
-              }
-            }}
-          >
-            <SelectTrigger className={selectTriggerCls}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value="efectivo" className="text-foreground">Efectivo</SelectItem>
-              <SelectItem value="debito" className="text-foreground">Débito</SelectItem>
-              <SelectItem value="mercadopago" className="text-foreground">Mercadopago</SelectItem>
-              <SelectItem value="credito" className="text-foreground">
-                <span className="flex items-center gap-2">
-                  <CreditCard className="h-3 w-3" /> Tarjeta de crédito
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            {form.tipo_division === 'porcentaje' && (
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[13px] text-muted-foreground flex-1">% que pagás vos</span>
+                <div className="relative w-24">
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    placeholder="50"
+                    value={form.division_valor}
+                    onChange={e => set('division_valor', e.target.value)}
+                    className="w-full text-[14px] font-semibold text-right bg-muted rounded-lg px-2 py-1.5 pr-6 text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">%</span>
+                </div>
+              </div>
+            )}
 
-        {form.metodo_pago === 'credito' && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Tarjeta
-            </Label>
-            {tarjetas.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
-                No tenés tarjetas configuradas.{' '}
-                <a href="/configuracion" className="text-primary underline">Configurar tarjetas</a>
-              </p>
-            ) : (
-              <>
-                <Select value={form.tarjeta_id} onValueChange={v => v && set('tarjeta_id', v)}>
-                  <SelectTrigger className={selectTriggerCls}>
-                    <SelectValue placeholder="Seleccioná una tarjeta" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {tarjetas.map(t => (
-                      <SelectItem key={t.id} value={t.id} className="text-foreground">
-                        {t.nombre} •••• {t.ultimos_4}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {tarjetaSeleccionada && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Cierra el día {tarjetaSeleccionada.fecha_cierre} · vence el día {tarjetaSeleccionada.fecha_vencimiento}
-                  </p>
-                )}
-              </>
+            {form.tipo_division === 'monto_fijo' && (
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[13px] text-muted-foreground flex-1">{otroUsuarioNombre} paga</span>
+                <div className="relative w-32">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">
+                    {form.moneda === 'USD' ? 'U$S' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.division_valor}
+                    onChange={e => set('division_valor', e.target.value)}
+                    className="w-full text-[14px] font-semibold text-right bg-muted rounded-lg px-2 py-1.5 pl-8 text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* ── División ──────────────────────────────────────────────────────── */}
-
-      <SectionLabel>División</SectionLabel>
-
-      <div className="space-y-4">
-        <Select value={form.tipo_division} onValueChange={v => v && set('tipo_division', v)}>
-          <SelectTrigger className={selectTriggerCls}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            <SelectItem value="50/50" className="text-foreground">50 / 50 — partes iguales</SelectItem>
-            <SelectItem value="porcentaje" className="text-foreground">Porcentaje personalizado</SelectItem>
-            <SelectItem value="monto_fijo" className="text-foreground">{otroUsuarioNombre} paga monto fijo</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {form.tipo_division === 'porcentaje' && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              % que pagás vos ({usuarioNombre})
-            </Label>
-            <div className="relative">
-              <Input
-                type="number"
-                min="1"
-                max="99"
-                placeholder="60"
-                className={`${inputCls} pr-8`}
-                value={form.division_valor}
-                onChange={e => set('division_valor', e.target.value)}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">%</span>
+          {/* Split preview */}
+          {split && montoCuota > 0 && (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="rounded-[10px] bg-muted/50 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{usuarioNombre}</p>
+                <p className="text-[13px] font-semibold text-foreground">{fmt(split.yo, form.moneda)}</p>
+              </div>
+              <div className="rounded-[10px] bg-muted/50 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{otroUsuarioNombre}</p>
+                <p className="text-[13px] font-semibold text-foreground">{fmt(split.otro, form.moneda)}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {form.tipo_division === 'monto_fijo' && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Monto fijo que paga {otroUsuarioNombre} por cuota
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
-                {form.moneda === 'USD' ? 'U$S' : '$'}
-              </span>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                className={`${inputCls} pl-10`}
-                value={form.division_valor}
-                onChange={e => set('division_valor', e.target.value)}
-              />
+        {/* ── Cuotas (solo crédito) ────────────────────────────────────── */}
+        {isCredito && (
+          <div
+            className="rounded-[20px] bg-card border border-border p-[20px] space-y-4"
+            style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
+              Cuotas
+            </p>
+
+            {/* Presets */}
+            <div className="flex gap-2">
+              {cuotasPresets.map(preset => {
+                const isOtro = preset.value === 'otro'
+                const isActive = isOtro ? isCustomCuotas : form.cuotas === preset.value
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => {
+                      if (isOtro) {
+                        if (!isCustomCuotas) set('cuotas', '24')
+                      } else {
+                        set('cuotas', preset.value)
+                      }
+                    }}
+                    className={cn(
+                      'flex-1 py-2 rounded-[10px] text-[13px] font-semibold transition-all',
+                      isActive ? 'bg-foreground text-background' : 'bg-muted text-foreground'
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                )
+              })}
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* ── Cuotas ───────────────────────────────────────────────────────── */}
-
-      {form.metodo_pago === 'credito' && (
-        <>
-          <SectionLabel>Cuotas y fecha</SectionLabel>
-
-          <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Cantidad de cuotas
-                </Label>
-                <Input
+            {/* Custom input when "Otro" */}
+            {isCustomCuotas && (
+              <div className="flex items-center gap-3">
+                <span className="text-[13px] text-muted-foreground flex-1">Cantidad de cuotas</span>
+                <input
                   type="number"
                   min="1"
                   max="60"
                   value={form.cuotas}
                   onChange={e => set('cuotas', e.target.value)}
-                  className={inputCls}
+                  className="w-20 text-center text-[15px] font-semibold bg-muted rounded-[10px] py-1.5 text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+                  autoFocus
                 />
               </div>
+            )}
 
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {esCreditoConTarjeta ? 'Fecha de compra' : 'Fecha de compra'}
-                </Label>
-                <Input
-                  type="date"
-                  value={form.fecha_inicio}
-                  onChange={e => set('fecha_inicio', e.target.value)}
-                  className={inputCls}
-                />
-                {esCreditoConTarjeta && primeraVencLabel && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Primera cuota: <span className="text-foreground font-medium">{primeraVencLabel}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Preview de cuotas */}
-            {split && numCuotas >= 1 && (
-              <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/50">
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{numCuotas} cuota{numCuotas > 1 ? 's' : ''}</span>
-                    {' '}de{' '}
-                    <span className="font-semibold text-foreground">{fmt(montoCuota, form.moneda)}</span>
-                    {getVencimientoLabel()}
-                  </p>
-                </div>
-                <div className="divide-y divide-border/50">
-                  <div className="flex items-center justify-between px-4 py-2.5">
-                    <p className="text-sm text-foreground font-medium">{usuarioNombre}</p>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">{fmt(split.yo, form.moneda)}</p>
-                      <p className="text-[10px] text-muted-foreground">{pctYo}% por cuota</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-2.5">
-                    <p className="text-sm text-foreground font-medium">{otroUsuarioNombre}</p>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">{fmt(split.otro, form.moneda)}</p>
-                      <p className="text-[10px] text-muted-foreground">{pctOtro}% por cuota</p>
-                    </div>
-                  </div>
+            {/* Preview pill */}
+            {numCuotas > 1 && montoTotal > 0 && (
+              <div className="flex justify-center">
+                <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted">
+                  <span className="text-[12px] text-muted-foreground font-medium">
+                    {numCuotas} cuotas de{' '}
+                    <span className="text-foreground font-semibold">{fmt(montoCuota, form.moneda)}</span>
+                  </span>
                 </div>
               </div>
             )}
+
+            {/* Tarjeta picker */}
+            {tarjetas.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">
+                Sin tarjetas.{' '}
+                <a href="/configuracion" className="text-primary underline">Configurar</a>
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[12px] text-muted-foreground">Tarjeta</p>
+                <div className="flex gap-2 flex-wrap">
+                  {tarjetas.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => set('tarjeta_id', t.id)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-[13px] font-semibold border transition-all',
+                        form.tarjeta_id === t.id
+                          ? 'bg-foreground text-background border-foreground'
+                          : 'bg-muted text-foreground border-transparent'
+                      )}
+                    >
+                      <CreditCard className="h-3.5 w-3.5" />
+                      {t.nombre} ••{t.ultimos_4}
+                    </button>
+                  ))}
+                </div>
+                {tarjetaSeleccionada && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Cierra el día {tarjetaSeleccionada.fecha_cierre} · vence el día {tarjetaSeleccionada.fecha_vencimiento}
+                    {getPrimeraVencimientoLabel() && (
+                      <> · primera cuota: <span className="text-foreground">{getPrimeraVencimientoLabel()}</span></>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Fecha de compra */}
+            <div className="space-y-1">
+              <p className="text-[12px] text-muted-foreground">Fecha de compra</p>
+              <input
+                type="date"
+                value={form.fecha_inicio}
+                onChange={e => set('fecha_inicio', e.target.value)}
+                className="w-full text-sm bg-muted rounded-[10px] px-3 py-2 text-foreground outline-none focus:ring-1 focus:ring-primary/30 border border-border"
+              />
+            </div>
           </div>
-        </>
-      )}
-
-      {/* ── Extras ───────────────────────────────────────────────────────── */}
-
-      <SectionLabel>Extras</SectionLabel>
-
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Recurrente
-          </Label>
-          <Select value={form.recurrente} onValueChange={v => v && set('recurrente', v)}>
-            <SelectTrigger className={selectTriggerCls}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value="no" className="text-foreground">No</SelectItem>
-              <SelectItem value="si" className="text-foreground">
-                <span className="flex items-center gap-2">
-                  <RefreshCw className="h-3 w-3" /> Sí, mensual
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Notas (opcional)
-          </Label>
-          <Textarea
-            placeholder="Información adicional..."
-            rows={2}
-            value={form.notas}
-            onChange={e => set('notas', e.target.value)}
-            className={inputCls}
-          />
-        </div>
+        )}
       </div>
 
-      {/* ── Submit ───────────────────────────────────────────────────────── */}
-
-      <Button
-        type="submit"
-        className="w-full h-12 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 mt-2"
-        disabled={loading}
+      {/* ── Sticky CTA ──────────────────────────────────────────────────── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-[84px] pt-4"
+        style={{
+          background: 'linear-gradient(to bottom, transparent, var(--background) 40%)',
+        }}
       >
-        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Guardar gasto
-      </Button>
+        <button
+          type="submit"
+          disabled={loading || !ctaEnabled}
+          className={cn(
+            'w-full h-12 rounded-[14px] text-[15px] font-semibold transition-all',
+            ctaEnabled
+              ? 'bg-foreground text-background'
+              : 'bg-muted text-muted-foreground cursor-not-allowed'
+          )}
+          style={ctaEnabled ? { boxShadow: '0 4px 12px rgba(42,31,23,0.25)' } : undefined}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+          ) : (
+            'Guardar gasto'
+          )}
+        </button>
+      </div>
     </form>
   )
 }
