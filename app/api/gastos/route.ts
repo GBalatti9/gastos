@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getGastos, createGasto, createPagos } from '@/lib/google-sheets'
+import { getGastos, createGasto, createPagos, getTarjetaById } from '@/lib/google-sheets'
 import { addMonths, setDate, format } from 'date-fns'
+import { calcularFechaVencimientoCuota } from '@/lib/billing-cycle'
 
 export async function GET() {
   const session = await auth()
@@ -19,14 +20,19 @@ export async function POST(req: NextRequest) {
   const {
     descripcion, monto_total, pagado_por, cuotas,
     fecha_inicio, categoria, notas,
-    moneda, tipo_division, division_valor, recurrente
+    moneda, tipo_division, division_valor, recurrente, carga_inmediata
   } = body
+
+  const esCargaInmediata = carga_inmediata === 'si'
+  const numCuotas = esCargaInmediata ? 1 : (parseInt(cuotas) || 1)
+  const fechaBase = new Date(fecha_inicio)
+  const fechaCarga = format(fechaBase, 'yyyy-MM-dd')
 
   const gasto = await createGasto({
     descripcion,
     monto_total: parseFloat(monto_total),
     pagado_por,
-    cuotas: parseInt(cuotas) || 1,
+    cuotas: numCuotas,
     cuota_actual: 0,
     fecha_inicio,
     dia_vencimiento: 1,
@@ -37,23 +43,32 @@ export async function POST(req: NextRequest) {
     tipo_division: tipo_division || '50/50',
     division_valor: division_valor || '',
     recurrente: recurrente === 'si',
+    metodo_pago: body.metodo_pago || 'efectivo',
+    tarjeta_id: body.tarjeta_id || '',
   })
 
   // Generate payment rows
-  const numCuotas = parseInt(cuotas) || 1
   const montoPorCuota = parseFloat(monto_total) / numCuotas
-  const fechaBase = new Date(fecha_inicio)
+  const esCredito = (body.metodo_pago === 'credito') && body.tarjeta_id
+  const tarjeta = esCredito ? await getTarjetaById(body.tarjeta_id) : null
 
   const pagos = Array.from({ length: numCuotas }, (_, i) => {
-    const fechaVenc = setDate(addMonths(fechaBase, i), 1)
+    let fechaVenc: Date
+    if (esCargaInmediata) {
+      fechaVenc = fechaBase
+    } else if (tarjeta) {
+      fechaVenc = calcularFechaVencimientoCuota(fechaBase, i, tarjeta)
+    } else {
+      fechaVenc = setDate(addMonths(fechaBase, i), 1)
+    }
     return {
       gasto_id: gasto.id,
       numero_cuota: i + 1,
       monto: Math.round(montoPorCuota * 100) / 100,
       fecha_vencimiento: format(fechaVenc, 'yyyy-MM-dd'),
-      fecha_pago: null,
-      pagado_por: null,
-      estado: 'pendiente' as const,
+      fecha_pago: esCargaInmediata ? fechaCarga : null,
+      pagado_por: esCargaInmediata ? pagado_por : null,
+      estado: esCargaInmediata ? 'pagado' as const : 'pendiente' as const,
     }
   })
 

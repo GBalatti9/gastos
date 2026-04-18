@@ -74,3 +74,21 @@ export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = '
     moneda,
   }
 }
+
+/**
+ * Calcula el saldo solo para los pagos cuya fecha_vencimiento cae en el mes indicado.
+ * Funciona tanto para gastos con tarjeta (billing cycle) como sin tarjeta (calendario).
+ */
+export function calcularSaldoMensual(
+  pagos: Pago[],
+  gastos: Gasto[],
+  moneda: Moneda,
+  mes: string // formato: "2026-04"
+): SaldoData {
+  const [anio, mesNum] = mes.split('-').map(Number)
+  const pagosMes = pagos.filter(p => {
+    const fecha = new Date(p.fecha_vencimiento)
+    return fecha.getFullYear() === anio && fecha.getMonth() + 1 === mesNum
+  })
+  return calcularSaldo(pagosMes, gastos, moneda)
+}

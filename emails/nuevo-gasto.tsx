@@ -33,7 +33,7 @@ export function NuevoGastoEmail({ destinatario, autor, gasto, primerPago }: Prop
             <Row label="Cuotas" value={`${gasto.cuotas} cuota(s)`} />
             <Row label="Monto por cuota" value={`$${(gasto.monto_total / gasto.cuotas).toLocaleString('es-AR')}`} />
             <Row label="Pagado por" value={autor.nombre} />
-            {primerPago && (
+            {primerPago?.estado === 'pendiente' && (
               <Row
                 label="Próximo vencimiento"
                 value={format(new Date(primerPago.fecha_vencimiento), "d 'de' MMMM yyyy", { locale: es })}

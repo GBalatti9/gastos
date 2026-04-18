@@ -15,13 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Categoria } from '@/lib/types'
-import { Loader2, RefreshCw, Plus, Check } from 'lucide-react'
+import { Categoria, TarjetaCredito } from '@/lib/types'
+import { calcularFechaVencimientoCuota } from '@/lib/billing-cycle'
+import { Loader2, RefreshCw, Plus, Check, CreditCard } from 'lucide-react'
+import { es } from 'date-fns/locale'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Props {
   categorias: Categoria[]
+  tarjetas: TarjetaCredito[]
   usuarioEmail: string
   usuarioNombre: string
   otroUsuarioNombre: string
@@ -191,7 +194,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Componente principal ─────────────────────────────────────────────��───────
 
-export function NuevoGastoForm({ categorias: categoriasIniciales, usuarioEmail, usuarioNombre, otroUsuarioNombre }: Props) {
+export function NuevoGastoForm({ categorias: categoriasIniciales, tarjetas, usuarioEmail, usuarioNombre, otroUsuarioNombre }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>(categoriasIniciales)
@@ -203,12 +206,15 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, usuarioEmail, 
     pagado_por: usuarioEmail,
     cuotas: '1',
     fecha_inicio: format(new Date(), 'yyyy-MM-dd'),
+    carga_inmediata: 'no',
     categoria: '',
     notas: '',
     moneda: 'ARS',
     tipo_division: '50/50',
     division_valor: '',
     recurrente: 'no',
+    metodo_pago: 'efectivo',
+    tarjeta_id: '',
   })
 
   function set(field: string, value: string) {
@@ -228,6 +234,32 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, usuarioEmail, 
 
   const pctYo = split && montoCuota > 0 ? Math.round((split.yo / montoCuota) * 100) : 0
   const pctOtro = 100 - pctYo
+
+  const tarjetaSeleccionada = form.metodo_pago === 'credito' && form.tarjeta_id
+    ? tarjetas.find(t => t.id === form.tarjeta_id) || null
+    : null
+
+  function getPrimeraVencimientoLabel(): string | null {
+    if (!tarjetaSeleccionada || !form.fecha_inicio) return null
+    try {
+      const primera = calcularFechaVencimientoCuota(new Date(form.fecha_inicio), 0, tarjetaSeleccionada)
+      return format(primera, "d 'de' MMMM yyyy", { locale: es })
+    } catch {
+      return null
+    }
+  }
+
+  function getVencimientoLabel(): string {
+    if (tarjetaSeleccionada) {
+      const fechaCompra = new Date(form.fecha_inicio)
+      const primera = calcularFechaVencimientoCuota(fechaCompra, 0, tarjetaSeleccionada)
+      return ` · primera cuota: ${format(primera, "d MMM yyyy", { locale: es })}`
+    }
+    return ' · vence el 1° de cada mes'
+  }
+
+  const primeraVencLabel = getPrimeraVencimientoLabel()
+  const esCreditoConTarjeta = form.metodo_pago === 'credito' && !!tarjetaSeleccionada
 
   // ─── Submit ──────────────────────────────────────────────────────────────
 
@@ -396,6 +428,82 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, usuarioEmail, 
 
       {/* ── División ───────────────────────────────────────���─────────────── */}
 
+      {/* ── Método de pago ────────────────────────────────────────────────── */}
+
+      <SectionLabel>Método de pago</SectionLabel>
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Pagado con
+          </Label>
+          <Select
+            value={form.metodo_pago}
+            onValueChange={v => {
+              if (!v) return
+              set('metodo_pago', v)
+              if (v !== 'credito') {
+                set('tarjeta_id', '')
+                set('carga_inmediata', 'si')
+                set('cuotas', '1')
+              } else {
+                set('carga_inmediata', 'no')
+              }
+            }}
+          >
+            <SelectTrigger className={selectTriggerCls}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border">
+              <SelectItem value="efectivo" className="text-foreground">Efectivo</SelectItem>
+              <SelectItem value="debito" className="text-foreground">Débito</SelectItem>
+              <SelectItem value="mercadopago" className="text-foreground">Mercadopago</SelectItem>
+              <SelectItem value="credito" className="text-foreground">
+                <span className="flex items-center gap-2">
+                  <CreditCard className="h-3 w-3" /> Tarjeta de crédito
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {form.metodo_pago === 'credito' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Tarjeta
+            </Label>
+            {tarjetas.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                No tenés tarjetas configuradas.{' '}
+                <a href="/configuracion" className="text-primary underline">Configurar tarjetas</a>
+              </p>
+            ) : (
+              <>
+                <Select value={form.tarjeta_id} onValueChange={v => v && set('tarjeta_id', v)}>
+                  <SelectTrigger className={selectTriggerCls}>
+                    <SelectValue placeholder="Seleccioná una tarjeta" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {tarjetas.map(t => (
+                      <SelectItem key={t.id} value={t.id} className="text-foreground">
+                        {t.nombre} •••• {t.ultimos_4}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {tarjetaSeleccionada && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Cierra el día {tarjetaSeleccionada.fecha_cierre} · vence el día {tarjetaSeleccionada.fecha_vencimiento}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── División ──────────────────────────────────────────────────────── */}
+
       <SectionLabel>División</SectionLabel>
 
       <div className="space-y-4">
@@ -455,67 +563,76 @@ export function NuevoGastoForm({ categorias: categoriasIniciales, usuarioEmail, 
 
       {/* ── Cuotas ───────────────────────────────────────────────────────── */}
 
-      <SectionLabel>Cuotas y fecha</SectionLabel>
+      {form.metodo_pago === 'credito' && (
+        <>
+          <SectionLabel>Cuotas y fecha</SectionLabel>
 
-      <div className="space-y-4">
-        <div className="flex gap-3">
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Cantidad de cuotas
-            </Label>
-            <Input
-              type="number"
-              min="1"
-              max="60"
-              value={form.cuotas}
-              onChange={e => set('cuotas', e.target.value)}
-              className={inputCls}
-            />
-          </div>
-
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Fecha de inicio
-            </Label>
-            <Input
-              type="date"
-              value={form.fecha_inicio}
-              onChange={e => set('fecha_inicio', e.target.value)}
-              className={inputCls}
-            />
-          </div>
-        </div>
-
-        {/* Preview de cuotas */}
-        {split && numCuotas >= 1 && (
-          <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
-            <div className="px-4 py-3 border-b border-border/50">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{numCuotas} cuota{numCuotas > 1 ? 's' : ''}</span>
-                {' '}de{' '}
-                <span className="font-semibold text-foreground">{fmt(montoCuota, form.moneda)}</span>
-                {' '}· vence el 1° de cada mes
-              </p>
-            </div>
-            <div className="divide-y divide-border/50">
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <p className="text-sm text-foreground font-medium">{usuarioNombre}</p>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-foreground">{fmt(split.yo, form.moneda)}</p>
-                  <p className="text-[10px] text-muted-foreground">{pctYo}% por cuota</p>
-                </div>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Cantidad de cuotas
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={form.cuotas}
+                  onChange={e => set('cuotas', e.target.value)}
+                  className={inputCls}
+                />
               </div>
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <p className="text-sm text-foreground font-medium">{otroUsuarioNombre}</p>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-foreground">{fmt(split.otro, form.moneda)}</p>
-                  <p className="text-[10px] text-muted-foreground">{pctOtro}% por cuota</p>
-                </div>
+
+              <div className="flex-1 space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {esCreditoConTarjeta ? 'Fecha de compra' : 'Fecha de compra'}
+                </Label>
+                <Input
+                  type="date"
+                  value={form.fecha_inicio}
+                  onChange={e => set('fecha_inicio', e.target.value)}
+                  className={inputCls}
+                />
+                {esCreditoConTarjeta && primeraVencLabel && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Primera cuota: <span className="text-foreground font-medium">{primeraVencLabel}</span>
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Preview de cuotas */}
+            {split && numCuotas >= 1 && (
+              <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">{numCuotas} cuota{numCuotas > 1 ? 's' : ''}</span>
+                    {' '}de{' '}
+                    <span className="font-semibold text-foreground">{fmt(montoCuota, form.moneda)}</span>
+                    {getVencimientoLabel()}
+                  </p>
+                </div>
+                <div className="divide-y divide-border/50">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <p className="text-sm text-foreground font-medium">{usuarioNombre}</p>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-foreground">{fmt(split.yo, form.moneda)}</p>
+                      <p className="text-[10px] text-muted-foreground">{pctYo}% por cuota</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <p className="text-sm text-foreground font-medium">{otroUsuarioNombre}</p>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-foreground">{fmt(split.otro, form.moneda)}</p>
+                      <p className="text-[10px] text-muted-foreground">{pctOtro}% por cuota</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* ── Extras ───────────────────────────────────────────────────────── */}
 

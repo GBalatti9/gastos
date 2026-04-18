@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Gasto, Pago, Categoria } from '@/lib/types'
+import { Gasto, Pago, Categoria, TarjetaCredito } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,22 +22,46 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { CheckCircle2, Circle, Loader2, Trash2, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, Trash2, ArrowLeft, CreditCard, Pencil } from 'lucide-react'
 import Link from 'next/link'
+import { EditarGastoForm } from './editar-gasto-form'
+
+const METODO_LABELS: Record<string, string> = {
+  efectivo: 'Efectivo',
+  debito: 'Débito',
+  mercadopago: 'Mercadopago',
+  credito: 'Tarjeta de crédito',
+}
 
 interface Props {
   gasto: Gasto
   pagos: Pago[]
   categorias: Categoria[]
+  tarjetas: TarjetaCredito[]
+  tarjeta?: TarjetaCredito | null
   usuarioEmail: string
   usuarioNombre: string
+  otroUsuarioEmail: string
+  otroUsuarioNombre: string
 }
 
-export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEmail, usuarioNombre }: Props) {
+export function GastoDetalle({
+  gasto: initialGasto,
+  pagos: initialPagos,
+  categorias,
+  tarjetas,
+  tarjeta: tarjetaInicial,
+  usuarioEmail,
+  usuarioNombre,
+  otroUsuarioEmail,
+  otroUsuarioNombre,
+}: Props) {
   const router = useRouter()
+  const [gasto, setGasto] = useState(initialGasto)
   const [pagos, setPagos] = useState(initialPagos)
   const [loadingPago, setLoadingPago] = useState<string | null>(null)
   const [loadingCancelar, setLoadingCancelar] = useState(false)
+  const [editando, setEditando] = useState(false)
 
   const cat = categorias.find(c => c.nombre === gasto.categoria)
   const pagados = pagos.filter(p => p.estado === 'pagado').length
@@ -45,6 +69,12 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
   const progreso = total > 0 ? (pagados / total) * 100 : 0
   const pagosPendientes = pagos.filter(p => p.estado === 'pendiente')
   const pagosPagados = pagos.filter(p => p.estado === 'pagado')
+  const tieneVencimientos = pagosPendientes.length > 0
+
+  // Tarjeta activa (puede cambiar si se edita)
+  const tarjetaActual = gasto.tarjeta_id
+    ? tarjetas.find(t => t.id === gasto.tarjeta_id) ?? tarjetaInicial
+    : null
 
   async function marcarComoPagado(pago: Pago) {
     setLoadingPago(pago.id)
@@ -61,7 +91,6 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
         )
       )
 
-      // Send notification
       try {
         await fetch('/api/notificaciones', {
           method: 'POST',
@@ -90,7 +119,6 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
       const res = await fetch(`/api/gastos/${gasto.id}/cancelar`, { method: 'POST' })
       if (!res.ok) throw new Error()
 
-      // Send notification
       try {
         await fetch('/api/notificaciones', {
           method: 'POST',
@@ -114,6 +142,44 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
     }
   }
 
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+
+  if (editando) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setEditando(false)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-bold">Editar gasto</h1>
+        </div>
+
+        <EditarGastoForm
+          gasto={gasto}
+          categorias={categorias}
+          tarjetas={tarjetas}
+          usuarioEmail={usuarioEmail}
+          usuarioNombre={usuarioNombre}
+          otroUsuarioEmail={otroUsuarioEmail}
+          otroUsuarioNombre={otroUsuarioNombre}
+          onGuardado={gastoActualizado => {
+            setGasto(gastoActualizado)
+            setEditando(false)
+            router.refresh()
+          }}
+          onCancelar={() => setEditando(false)}
+        />
+      </div>
+    )
+  }
+
+  // ── View mode ──────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -132,6 +198,16 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
             {gasto.estado === 'cancelado' && <Badge variant="destructive">Cancelado</Badge>}
           </div>
         </div>
+        {gasto.estado === 'activo' && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 border-border"
+            onClick={() => setEditando(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -139,12 +215,16 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-muted-foreground">Monto total</p>
-              <p className="text-2xl font-bold">${gasto.monto_total.toLocaleString('es-AR')}</p>
+              <p className="text-2xl font-bold">
+                {gasto.moneda === 'USD' ? 'U$S ' : '$'}
+                {gasto.monto_total.toLocaleString('es-AR')}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Por cuota</p>
               <p className="text-2xl font-bold">
-                ${(gasto.monto_total / gasto.cuotas).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                {gasto.moneda === 'USD' ? 'U$S ' : '$'}
+                {(gasto.monto_total / gasto.cuotas).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
@@ -166,14 +246,33 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
               <p className="text-xs text-muted-foreground">Cuotas</p>
               <p className="font-medium">{gasto.cuotas}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Vence el día</p>
-              <p className="font-medium">{gasto.dia_vencimiento} de cada mes</p>
-            </div>
+            {tieneVencimientos ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Vence el día</p>
+                <p className="font-medium">{gasto.dia_vencimiento} de cada mes</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-muted-foreground">Estado de carga</p>
+                <p className="font-medium">Sin vencimiento futuro</p>
+              </div>
+            )}
             <div>
               <p className="text-xs text-muted-foreground">Fecha inicio</p>
               <p className="font-medium">
                 {format(new Date(gasto.fecha_inicio), "d MMM yyyy", { locale: es })}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Método de pago</p>
+              <p className="font-medium flex items-center gap-1.5">
+                {gasto.metodo_pago === 'credito' && <CreditCard className="h-3.5 w-3.5" />}
+                {METODO_LABELS[gasto.metodo_pago] || 'Efectivo'}
+                {tarjetaActual && (
+                  <span className="text-muted-foreground text-xs">
+                    ({tarjetaActual.nombre} •••• {tarjetaActual.ultimos_4})
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -216,7 +315,10 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">${pago.monto.toLocaleString('es-AR')}</span>
+                    <span className="font-semibold text-sm">
+                      {gasto.moneda === 'USD' ? 'U$S ' : '$'}
+                      {pago.monto.toLocaleString('es-AR')}
+                    </span>
                     {gasto.estado === 'activo' && (
                       usuarioEmail === gasto.pagado_por ? (
                         <span className="text-xs text-muted-foreground italic">esperando pago</span>
@@ -272,7 +374,8 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
                     </div>
                   </div>
                   <span className="font-semibold text-sm text-green-700">
-                    ${pago.monto.toLocaleString('es-AR')}
+                    {gasto.moneda === 'USD' ? 'U$S ' : '$'}
+                    {pago.monto.toLocaleString('es-AR')}
                   </span>
                 </div>
               ))}
@@ -294,7 +397,7 @@ export function GastoDetalle({ gasto, pagos: initialPagos, categorias, usuarioEm
             <AlertDialogHeader>
               <AlertDialogTitle>¿Cancelar este gasto?</AlertDialogTitle>
               <AlertDialogDescription>
-                Se cancelará "{gasto.descripcion}" y se notificará a la otra persona. No se pueden deshacer los pagos ya registrados.
+                Se cancelará &quot;{gasto.descripcion}&quot; y se notificará a la otra persona. No se pueden deshacer los pagos ya registrados.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

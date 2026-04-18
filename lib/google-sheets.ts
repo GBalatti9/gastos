@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { Gasto, Pago, Categoria, Cierre, Moneda, TipoDivision, TipoCambio } from './types'
+import { Gasto, Pago, Categoria, Cierre, Moneda, TipoDivision, TipoCambio, MetodoPago, TarjetaCredito } from './types'
 
 function getAuth() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n')
@@ -25,7 +25,7 @@ export async function getGastos(): Promise<Gasto[]> {
   const sheets = getSheets()
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A2:O',
+    range: 'gastos!A2:Q',
   })
   const rows = res.data.values || []
   return rows.map(rowToGasto).filter(Boolean) as Gasto[]
@@ -59,16 +59,83 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
     data.tipo_division || '50/50',
     data.division_valor || '',
     data.recurrente ? 'si' : 'no',
+    data.metodo_pago || 'efectivo',
+    data.tarjeta_id || '',
   ]
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:O',
+    range: 'gastos!A:Q',
     valueInputOption: 'RAW',
     requestBody: { values: [row] },
   })
 
   return { ...data, id: nextId }
+}
+
+export async function updateGasto(id: string, data: Partial<Omit<Gasto, 'id' | 'estado' | 'cuota_actual'>>): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'gastos!A:Q',
+  })
+  const rows = res.data.values || []
+  const rowIndex = rows.findIndex(r => r[0] === id)
+  if (rowIndex === -1) throw new Error(`Gasto ${id} no encontrado`)
+
+  const c = rows[rowIndex]
+  const updated = [
+    id,
+    data.descripcion ?? c[1],
+    data.monto_total ?? c[2],
+    data.pagado_por ?? c[3],
+    c[4], // cuotas — inmutable
+    c[5], // cuota_actual — inmutable
+    data.fecha_inicio ?? c[6],
+    c[7], // dia_vencimiento — derivado
+    data.categoria ?? c[8],
+    data.notas ?? c[9],
+    c[10], // estado — usar endpoint cancelar
+    data.moneda ?? c[11],
+    data.tipo_division ?? c[12],
+    data.division_valor ?? c[13],
+    data.recurrente !== undefined ? (data.recurrente ? 'si' : 'no') : c[14],
+    data.metodo_pago ?? c[15],
+    data.tarjeta_id ?? c[16],
+  ]
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `gastos!A${rowIndex + 1}:Q${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [updated] },
+  })
+}
+
+export async function updatePago(id: string, data: { monto?: number; fecha_vencimiento?: string }): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'pagos!A:H',
+  })
+  const rows = res.data.values || []
+  const rowIndex = rows.findIndex(r => r[0] === id)
+  if (rowIndex === -1) throw new Error(`Pago ${id} no encontrado`)
+
+  const c = rows[rowIndex]
+  const updated = [
+    c[0], c[1], c[2],
+    data.monto ?? c[3],
+    data.fecha_vencimiento ?? c[4],
+    c[5], c[6], c[7],
+  ]
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `pagos!A${rowIndex + 1}:H${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [updated] },
+  })
 }
 
 export async function updateGastoEstado(id: string, estado: 'activo' | 'cancelado'): Promise<void> {
@@ -301,6 +368,95 @@ export async function saveTipoCambio(fecha: string, valor: number, fuente: 'bna'
   return { fecha, valor, fuente }
 }
 
+// ─── Tarjetas de Crédito ──────────────────────────────────────────────────────
+
+export async function getTarjetas(): Promise<TarjetaCredito[]> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'tarjetas!A2:F',
+  })
+  const rows = res.data.values || []
+  return rows.map(rowToTarjeta).filter(Boolean) as TarjetaCredito[]
+}
+
+export async function getTarjetaById(id: string): Promise<TarjetaCredito | null> {
+  const tarjetas = await getTarjetas()
+  return tarjetas.find(t => t.id === id) || null
+}
+
+export async function createTarjeta(data: Omit<TarjetaCredito, 'id'>): Promise<TarjetaCredito> {
+  const sheets = getSheets()
+  const tarjetas = await getTarjetas()
+  const nextId = tarjetas.length > 0
+    ? String(Math.max(...tarjetas.map(t => parseInt(t.id) || 0)) + 1)
+    : '1'
+
+  const row = [
+    nextId,
+    data.nombre,
+    data.ultimos_4,
+    data.fecha_cierre,
+    data.fecha_vencimiento,
+    data.owner_email,
+  ]
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'tarjetas!A:F',
+    valueInputOption: 'RAW',
+    requestBody: { values: [row] },
+  })
+
+  return { ...data, id: nextId }
+}
+
+export async function updateTarjeta(id: string, data: Partial<Omit<TarjetaCredito, 'id'>>): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'tarjetas!A:F',
+  })
+  const rows = res.data.values || []
+  const rowIndex = rows.findIndex(r => r[0] === id)
+  if (rowIndex === -1) throw new Error(`Tarjeta ${id} no encontrada`)
+
+  const current = rows[rowIndex]
+  const updated = [
+    id,
+    data.nombre ?? current[1],
+    data.ultimos_4 ?? current[2],
+    data.fecha_cierre ?? current[3],
+    data.fecha_vencimiento ?? current[4],
+    data.owner_email ?? current[5],
+  ]
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `tarjetas!A${rowIndex + 1}:F${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [updated] },
+  })
+}
+
+export async function deleteTarjeta(id: string): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'tarjetas!A:A',
+  })
+  const rows = res.data.values || []
+  const rowIndex = rows.findIndex(r => r[0] === id)
+  if (rowIndex === -1) throw new Error(`Tarjeta ${id} no encontrada`)
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `tarjetas!A${rowIndex + 1}:F${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [['', '', '', '', '', '']] },
+  })
+}
+
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function rowToGasto(row: string[]): Gasto | null {
@@ -321,6 +477,8 @@ function rowToGasto(row: string[]): Gasto | null {
     tipo_division: (row[12] as TipoDivision) || '50/50',
     division_valor: row[13] || '',
     recurrente: row[14] === 'si',
+    metodo_pago: (row[15] as MetodoPago) || 'efectivo',
+    tarjeta_id: row[16] || '',
   }
 }
 
@@ -336,6 +494,18 @@ function rowToCierre(row: string[]): Cierre | null {
     acreedor: row[6] || '',
     fecha_cierre: row[7] || '',
     moneda: (row[8] as Moneda) || 'ARS',
+  }
+}
+
+function rowToTarjeta(row: string[]): TarjetaCredito | null {
+  if (!row[0]) return null
+  return {
+    id: row[0],
+    nombre: row[1] || '',
+    ultimos_4: row[2] || '',
+    fecha_cierre: parseInt(row[3]) || 1,
+    fecha_vencimiento: parseInt(row[4]) || 1,
+    owner_email: row[5] || '',
   }
 }
 

@@ -1,34 +1,65 @@
 import { auth } from '@/lib/auth'
-import { getGastos, getPagos, getCategorias, getCierres } from '@/lib/google-sheets'
-import { calcularSaldo } from '@/lib/saldo'
+import { getGastos, getPagos, getCategorias, getCierres, getTarjetas } from '@/lib/google-sheets'
+import { calcularSaldo, calcularSaldoMensual } from '@/lib/saldo'
 import { SaldoCard } from '@/components/dashboard/saldo-card'
+import { SaldoMesCard } from '@/components/dashboard/saldo-mes-card'
 import { ProximosVencimientos } from '@/components/dashboard/proximos-vencimientos'
 import { ResumenMes } from '@/components/dashboard/resumen-mes'
 import { GastosActivos } from '@/components/dashboard/gastos-activos'
 import { CierreMes } from '@/components/dashboard/cierre-mes'
+import { MonthNavigator } from '@/components/dashboard/month-navigator'
+import { CuotasMes } from '@/components/dashboard/cuotas-mes'
+import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
 import { getUsers } from '@/lib/users'
 import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 export const revalidate = 60
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string }>
+}) {
   const session = await auth()
   const usuarioEmail = session?.user?.email || ''
+  const { mes: mesParam } = await searchParams
 
-  const [gastos, pagos, categorias, cierres] = await Promise.all([
+  const hoy = new Date()
+  const mesSeleccionado = mesParam || format(hoy, 'yyyy-MM')
+  const [anioSel, mesSel] = mesSeleccionado.split('-').map(Number)
+  const fechaMes = new Date(anioSel, mesSel - 1, 1)
+  const mesLabel = format(fechaMes, 'MMMM yyyy', { locale: es })
+
+  const [gastos, pagos, categorias, cierres, tarjetas] = await Promise.all([
     getGastos(),
     getPagos(),
     getCategorias(),
     getCierres(),
+    getTarjetas(),
   ])
 
-  const saldoARS = calcularSaldo(pagos, gastos, 'ARS')
-  const saldoUSD = calcularSaldo(pagos, gastos, 'USD')
   const [u1, u2] = getUsers()
 
-  const hoy = new Date()
-  const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
+  // ── Saldos totales ─────────────────────────────────────────────────────
+  const saldoARS = calcularSaldo(pagos, gastos, 'ARS')
+  const saldoUSD = calcularSaldo(pagos, gastos, 'USD')
 
+  // ── Saldos mensuales ──────────────────────────────────────────────────
+  const saldoMesARS = calcularSaldoMensual(pagos, gastos, 'ARS', mesSeleccionado)
+  const saldoMesUSD = calcularSaldoMensual(pagos, gastos, 'USD', mesSeleccionado)
+
+  // ── Pagos del mes seleccionado (por fecha_vencimiento) ────────────────
+  const pagosMesVenc = pagos.filter(p => {
+    const fecha = new Date(p.fecha_vencimiento)
+    return fecha.getFullYear() === anioSel && fecha.getMonth() + 1 === mesSel
+  }).filter(p => {
+    const gasto = gastos.find(g => g.id === p.gasto_id)
+    return gasto && gasto.estado === 'activo'
+  })
+
+  // ── Próximos vencimientos (30 días) ──────────────────────────────────
+  const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
   const proximos = pagos
     .filter(p => {
       if (p.estado !== 'pendiente') return false
@@ -45,9 +76,9 @@ export default async function DashboardPage() {
     .filter(Boolean)
     .sort((a, b) => a!.dias_restantes - b!.dias_restantes) as any[]
 
-  // Resumen del mes actual
-  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
-  const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
+  // ── Resumen del mes (pagos realizados en el mes) ──────────────────────
+  const inicioMes = new Date(anioSel, mesSel - 1, 1)
+  const finMes = new Date(anioSel, mesSel, 0)
 
   const pagosMes = pagos.filter(p => {
     if (!p.fecha_pago) return false
@@ -55,7 +86,6 @@ export default async function DashboardPage() {
     return f >= inicioMes && f <= finMes
   })
 
-  // ARS
   const pagosMesARS = pagosMes.filter(p => {
     const g = gastos.find(g => g.id === p.gasto_id)
     return (g?.moneda || 'ARS') === 'ARS'
@@ -64,7 +94,6 @@ export default async function DashboardPage() {
   const u1PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
   const u2PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
 
-  // USD
   const pagosMesUSD = pagosMes.filter(p => {
     const g = gastos.find(g => g.id === p.gasto_id)
     return g?.moneda === 'USD'
@@ -88,32 +117,56 @@ export default async function DashboardPage() {
 
   return (
     <div className="py-6 space-y-4">
-      <SaldoCard
-        saldoARS={saldoARS}
-        saldoUSD={saldoUSD}
-        usuarioEmail={usuarioEmail}
+      <MonthNavigator mes={mesSeleccionado} />
+
+      <DashboardTabs
+        mesContent={
+          <>
+            <SaldoMesCard
+              saldoARS={saldoMesARS}
+              saldoUSD={saldoMesUSD}
+              usuarioEmail={usuarioEmail}
+              mesLabel={mesLabel}
+            />
+
+            <CuotasMes
+              pagos={pagosMesVenc}
+              gastos={gastos}
+              tarjetas={tarjetas}
+            />
+
+            <ResumenMes
+              total={totalMesARS}
+              porCategoria={porCategoria}
+              user1={{ ...u1, pagado: u1PagoMesARS }}
+              user2={{ ...u2, pagado: u2PagoMesARS }}
+              totalUSD={totalMesUSD}
+              user1USD={{ pagado: u1PagoMesUSD }}
+              user2USD={{ pagado: u2PagoMesUSD }}
+            />
+          </>
+        }
+        totalContent={
+          <>
+            <SaldoCard
+              saldoARS={saldoARS}
+              saldoUSD={saldoUSD}
+              usuarioEmail={usuarioEmail}
+            />
+
+            <ProximosVencimientos proximos={proximos} />
+
+            <CierreMes
+              cierres={cierres}
+              saldoARS={saldoARS}
+              saldoUSD={saldoUSD}
+              mesActual={mesActual}
+            />
+
+            <GastosActivos gastos={gastosActivos} pagos={pagos} categorias={categorias} />
+          </>
+        }
       />
-
-      <ProximosVencimientos proximos={proximos} />
-
-      <ResumenMes
-        total={totalMesARS}
-        porCategoria={porCategoria}
-        user1={{ ...u1, pagado: u1PagoMesARS }}
-        user2={{ ...u2, pagado: u2PagoMesARS }}
-        totalUSD={totalMesUSD}
-        user1USD={{ pagado: u1PagoMesUSD }}
-        user2USD={{ pagado: u2PagoMesUSD }}
-      />
-
-      <CierreMes
-        cierres={cierres}
-        saldoARS={saldoARS}
-        saldoUSD={saldoUSD}
-        mesActual={mesActual}
-      />
-
-      <GastosActivos gastos={gastosActivos} pagos={pagos} categorias={categorias} />
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { Home, List, PlusCircle, LogOut } from 'lucide-react'
+import { Home, List, PlusCircle, LogOut, Settings } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/dashboard', label: 'Inicio', icon: Home },
   { href: '/gastos', label: 'Gastos', icon: List },
   { href: '/gastos/nuevo', label: 'Nuevo', icon: PlusCircle },
+  { href: '/configuracion', label: 'Ajustes', icon: Settings },
 ]
 
 export function Nav() {

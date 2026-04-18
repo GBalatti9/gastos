@@ -1,5 +1,6 @@
 export type TipoDivision = '50/50' | 'porcentaje' | 'monto_fijo'
 export type Moneda = 'ARS' | 'USD'
+export type MetodoPago = 'efectivo' | 'debito' | 'mercadopago' | 'credito'
 
 export interface Gasto {
   id: string
@@ -17,6 +18,8 @@ export interface Gasto {
   tipo_division: TipoDivision
   division_valor: string // vacío para 50/50, "70" para porcentaje, "15000" para monto_fijo
   recurrente: boolean
+  metodo_pago: MetodoPago
+  tarjeta_id: string
 }
 
 export interface Pago {
@@ -81,6 +84,15 @@ export interface TipoCambio {
   fecha: string // YYYY-MM-DD
   valor: number
   fuente: 'bna' | 'manual'
+}
+
+export interface TarjetaCredito {
+  id: string
+  nombre: string
+  ultimos_4: string
+  fecha_cierre: number    // dia del mes (1-31)
+  fecha_vencimiento: number // dia del mes (1-31)
+  owner_email: string
 }
 
 export interface NotificacionPayload {
