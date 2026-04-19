@@ -68,8 +68,10 @@ export function GastoDetalle({
   const total = pagos.length || gasto.cuotas
   const progreso = total > 0 ? (pagados / total) * 100 : 0
   const pagosPendientes = pagos.filter(p => p.estado === 'pendiente')
+    .sort((a, b) => a.numero_cuota - b.numero_cuota)
   const pagosPagados = pagos.filter(p => p.estado === 'pagado')
   const tieneVencimientos = pagosPendientes.length > 0
+  const proximaCuota = pagosPendientes[0]?.numero_cuota ?? null
 
   // Tarjeta activa (puede cambiar si se edita)
   const tarjetaActual = gasto.tarjeta_id
@@ -246,12 +248,7 @@ export function GastoDetalle({
               <p className="text-xs text-muted-foreground">Cuotas</p>
               <p className="font-medium">{gasto.cuotas}</p>
             </div>
-            {tieneVencimientos ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Vence el día</p>
-                <p className="font-medium">{gasto.dia_vencimiento} de cada mes</p>
-              </div>
-            ) : (
+            {!tieneVencimientos && (
               <div>
                 <p className="text-xs text-muted-foreground">Estado de carga</p>
                 <p className="font-medium">Sin vencimiento futuro</p>
@@ -296,9 +293,9 @@ export function GastoDetalle({
             <CardTitle className="text-base">Cuotas pendientes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pagosPendientes
-              .sort((a, b) => a.numero_cuota - b.numero_cuota)
-              .map(pago => (
+            {pagosPendientes.map(pago => {
+              const esSiguiente = pago.numero_cuota === proximaCuota
+              return (
                 <div
                   key={pago.id}
                   className="flex items-center justify-between p-3 rounded-lg bg-orange-50 border border-orange-100"
@@ -319,7 +316,7 @@ export function GastoDetalle({
                       {gasto.moneda === 'USD' ? 'U$S ' : '$'}
                       {pago.monto.toLocaleString('es-AR')}
                     </span>
-                    {gasto.estado === 'activo' && (
+                    {gasto.estado === 'activo' && esSiguiente && (
                       usuarioEmail === gasto.pagado_por ? (
                         <span className="text-xs text-muted-foreground italic">esperando pago</span>
                       ) : (
@@ -340,7 +337,8 @@ export function GastoDetalle({
                     )}
                   </div>
                 </div>
-              ))}
+              )
+            })}
           </CardContent>
         </Card>
       )}

@@ -35,7 +35,6 @@ export async function POST(req: NextRequest) {
     cuotas: numCuotas,
     cuota_actual: 0,
     fecha_inicio,
-    dia_vencimiento: 1,
     categoria,
     notas: notas || '',
     estado: 'activo',

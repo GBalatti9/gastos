@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getGastos, getPagos, createPagos } from '@/lib/google-sheets'
-import { addMonths, setDate, format, startOfMonth, endOfMonth } from 'date-fns'
+import { getGastos, getPagos, createPagos, getTarjetaById } from '@/lib/google-sheets'
+import { addMonths, setDate, getDaysInMonth, format, startOfMonth, endOfMonth } from 'date-fns'
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
@@ -18,7 +18,15 @@ export async function GET(req: Request) {
   const pagosCreados: string[] = []
 
   for (const gasto of gastosRecurrentes) {
-    const fechaVenc = setDate(proximoMes, gasto.dia_vencimiento)
+    let diaVenc: number
+    if (gasto.metodo_pago === 'credito' && gasto.tarjeta_id) {
+      const tarjeta = await getTarjetaById(gasto.tarjeta_id)
+      diaVenc = tarjeta?.fecha_vencimiento ?? new Date(gasto.fecha_inicio).getDate()
+    } else {
+      diaVenc = new Date(gasto.fecha_inicio).getDate()
+    }
+    const diaMax = getDaysInMonth(proximoMes)
+    const fechaVenc = setDate(proximoMes, Math.min(diaVenc, diaMax))
 
     // Verificar que no exista ya un pago para el próximo mes
     const yaExiste = pagos.some(p => {

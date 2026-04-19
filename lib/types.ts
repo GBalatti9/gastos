@@ -10,7 +10,6 @@ export interface Gasto {
   cuotas: number
   cuota_actual: number
   fecha_inicio: string // ISO date
-  dia_vencimiento: number
   categoria: string
   notas: string
   estado: 'activo' | 'cancelado'

@@ -25,7 +25,7 @@ export async function getGastos(): Promise<Gasto[]> {
   const sheets = getSheets()
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A2:Q',
+    range: 'gastos!A2:P',
   })
   const rows = res.data.values || []
   return rows.map(rowToGasto).filter(Boolean) as Gasto[]
@@ -38,10 +38,7 @@ export async function getGastoById(id: string): Promise<Gasto | null> {
 
 export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
   const sheets = getSheets()
-  const gastos = await getGastos()
-  const nextId = gastos.length > 0
-    ? String(Math.max(...gastos.map(g => parseInt(g.id) || 0)) + 1)
-    : '1'
+  const nextId = Date.now().toString()
 
   const row = [
     nextId,
@@ -51,7 +48,6 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
     data.cuotas,
     data.cuota_actual,
     data.fecha_inicio,
-    data.dia_vencimiento,
     data.categoria,
     data.notas,
     data.estado,
@@ -65,8 +61,9 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:Q',
+    range: 'gastos!A:P',
     valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
   })
 
@@ -92,21 +89,20 @@ export async function updateGasto(id: string, data: Partial<Omit<Gasto, 'id' | '
     c[4], // cuotas — inmutable
     c[5], // cuota_actual — inmutable
     data.fecha_inicio ?? c[6],
-    c[7], // dia_vencimiento — derivado
-    data.categoria ?? c[8],
-    data.notas ?? c[9],
-    c[10], // estado — usar endpoint cancelar
-    data.moneda ?? c[11],
-    data.tipo_division ?? c[12],
-    data.division_valor ?? c[13],
-    data.recurrente !== undefined ? (data.recurrente ? 'si' : 'no') : c[14],
-    data.metodo_pago ?? c[15],
-    data.tarjeta_id ?? c[16],
+    data.categoria ?? c[7],
+    data.notas ?? c[8],
+    c[9], // estado — usar endpoint cancelar
+    data.moneda ?? c[10],
+    data.tipo_division ?? c[11],
+    data.division_valor ?? c[12],
+    data.recurrente !== undefined ? (data.recurrente ? 'si' : 'no') : c[13],
+    data.metodo_pago ?? c[14],
+    data.tarjeta_id ?? c[15],
   ]
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `gastos!A${rowIndex + 1}:Q${rowIndex + 1}`,
+    range: `gastos!A${rowIndex + 1}:P${rowIndex + 1}`,
     valueInputOption: 'RAW',
     requestBody: { values: [updated] },
   })
@@ -148,10 +144,11 @@ export async function updateGastoEstado(id: string, estado: 'activo' | 'cancelad
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Gasto ${id} no encontrado`)
 
-  const rowNum = rowIndex + 1 // 1-indexed, but row 1 is header so +1 already included
+  // rowIndex ya es 1-based porque A:A incluye el header en rows[0]
+  const sheetRow = rowIndex + 1
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `gastos!K${rowNum + 1}`,
+    range: `gastos!J${sheetRow}`,
     valueInputOption: 'RAW',
     requestBody: { values: [[estado]] },
   })
@@ -177,10 +174,7 @@ export async function getPagosByGastoId(gastoId: string): Promise<Pago[]> {
 export async function createPagos(pagos: Omit<Pago, 'id'>[]): Promise<void> {
   if (pagos.length === 0) return
   const sheets = getSheets()
-  const existing = await getPagos()
-  let nextId = existing.length > 0
-    ? Math.max(...existing.map(p => parseInt(p.id) || 0)) + 1
-    : 1
+  let nextId = Date.now()
 
   const rows = pagos.map(p => [
     String(nextId++),
@@ -197,6 +191,7 @@ export async function createPagos(pagos: Omit<Pago, 'id'>[]): Promise<void> {
     spreadsheetId: SPREADSHEET_ID,
     range: 'pagos!A:H',
     valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
     requestBody: { values: rows },
   })
 }
@@ -215,15 +210,16 @@ export async function marcarPagoComoPagado(
   const rowIndex = rows.findIndex(r => r[0] === pagoId)
   if (rowIndex === -1) throw new Error(`Pago ${pagoId} no encontrado`)
 
-  const rowNum = rowIndex + 2 // 1-indexed + header row offset
+  // rowIndex ya es 1-based porque A:A incluye el header en rows[0]
+  const sheetRow = rowIndex + 1
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
     requestBody: {
       valueInputOption: 'RAW',
       data: [
-        { range: `pagos!F${rowNum}`, values: [[fechaPago]] },
-        { range: `pagos!G${rowNum}`, values: [[pagadoPor]] },
-        { range: `pagos!H${rowNum}`, values: [['pagado']] },
+        { range: `pagos!F${sheetRow}`, values: [[fechaPago]] },
+        { range: `pagos!G${sheetRow}`, values: [[pagadoPor]] },
+        { range: `pagos!H${sheetRow}`, values: [['pagado']] },
       ],
     },
   })
@@ -243,10 +239,7 @@ export async function getCierres(): Promise<Cierre[]> {
 
 export async function createCierre(data: Omit<Cierre, 'id'>): Promise<Cierre> {
   const sheets = getSheets()
-  const cierres = await getCierres()
-  const nextId = cierres.length > 0
-    ? String(Math.max(...cierres.map(c => parseInt(c.id) || 0)) + 1)
-    : '1'
+  const nextId = Date.now().toString()
 
   const row = [
     nextId,
@@ -469,16 +462,15 @@ function rowToGasto(row: string[]): Gasto | null {
     cuotas: parseInt(row[4]) || 1,
     cuota_actual: parseInt(row[5]) || 0,
     fecha_inicio: row[6] || '',
-    dia_vencimiento: parseInt(row[7]) || 1,
-    categoria: row[8] || '',
-    notas: row[9] || '',
-    estado: (row[10] as 'activo' | 'cancelado') || 'activo',
-    moneda: (row[11] as Moneda) || 'ARS',
-    tipo_division: (row[12] as TipoDivision) || '50/50',
-    division_valor: row[13] || '',
-    recurrente: row[14] === 'si',
-    metodo_pago: (row[15] as MetodoPago) || 'efectivo',
-    tarjeta_id: row[16] || '',
+    categoria: row[7] || '',
+    notas: row[8] || '',
+    estado: (row[9] as 'activo' | 'cancelado') || 'activo',
+    moneda: (row[10] as Moneda) || 'ARS',
+    tipo_division: (row[11] as TipoDivision) || '50/50',
+    division_valor: row[12] || '',
+    recurrente: row[13] === 'si',
+    metodo_pago: (row[14] as MetodoPago) || 'efectivo',
+    tarjeta_id: row[15] || '',
   }
 }
 
