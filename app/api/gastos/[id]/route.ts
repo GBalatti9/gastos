@@ -33,7 +33,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const montoChanged = montoNuevo !== montoAnterior
   const tarjetaChanged = (body.tarjeta_id ?? gasto.tarjeta_id) !== gasto.tarjeta_id
   const fechaChanged = (body.fecha_inicio ?? gasto.fecha_inicio) !== gasto.fecha_inicio
-  const recalcFechas = tarjetaChanged || fechaChanged
+  const esCredito = body.metodo_pago === 'credito' && body.tarjeta_id
+  const recalcFechas = tarjetaChanged || fechaChanged || body.recalcular_fechas || esCredito
 
   await updateGasto(id, {
     descripcion: body.descripcion,
@@ -52,24 +53,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (montoChanged || recalcFechas) {
     const pagos = await getPagosByGastoId(id)
-    const pendientes = pagos.filter(p => p.estado === 'pendiente')
 
     let tarjeta = null
-    if (recalcFechas && body.metodo_pago === 'credito' && body.tarjeta_id) {
+    if (body.metodo_pago === 'credito' && body.tarjeta_id) {
       tarjeta = await getTarjetaById(body.tarjeta_id)
     }
 
     const nuevoCuotas = gasto.cuotas
     const nuevaMontoCuota = montoNuevo / nuevoCuotas
-    const fechaCompra = new Date(body.fecha_inicio ?? gasto.fecha_inicio)
+    const fechaInicioStr = body.fecha_inicio ?? gasto.fecha_inicio
+    const [anio, mes, dia] = fechaInicioStr.split('-').map(Number)
+    const fechaCompra = new Date(anio, mes - 1, dia)
 
-    for (const pago of pendientes) {
+    for (const pago of pagos) {
       const updates: { monto?: number; fecha_vencimiento?: string } = {}
 
-      if (montoChanged) {
+      // Solo actualizar monto en cuotas pendientes
+      if (montoChanged && pago.estado === 'pendiente') {
         updates.monto = Math.round(nuevaMontoCuota * 100) / 100
       }
 
+      // Recalcular fecha_vencimiento en TODAS las cuotas (pagadas y pendientes)
       if (recalcFechas) {
         const cuotaIdx = pago.numero_cuota - 1
         let fechaVenc: Date
@@ -81,7 +85,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         updates.fecha_vencimiento = format(fechaVenc, 'yyyy-MM-dd')
       }
 
-      await updatePago(pago.id, updates)
+      if (Object.keys(updates).length > 0) {
+        await updatePago(pago.id, updates)
+      }
     }
   }
 

@@ -51,8 +51,8 @@ export default async function DashboardPage({
 
   // ── Pagos del mes seleccionado (por fecha_vencimiento) ────────────────
   const pagosMesVenc = pagos.filter(p => {
-    const fecha = new Date(p.fecha_vencimiento)
-    return fecha.getFullYear() === anioSel && fecha.getMonth() + 1 === mesSel
+    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
+    return y === anioSel && m === mesSel
   }).filter(p => {
     const gasto = gastos.find(g => g.id === p.gasto_id)
     return gasto && gasto.estado === 'activo'

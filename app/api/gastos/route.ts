@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
 
   const esCargaInmediata = carga_inmediata === 'si'
   const numCuotas = esCargaInmediata ? 1 : (parseInt(cuotas) || 1)
-  const fechaBase = new Date(fecha_inicio)
+  // Parsear como fecha local para evitar desfase por timezone
+  // (new Date("2026-03-29") crea UTC midnight → en UTC-3 da marzo 28)
+  const [anioF, mesF, diaF] = fecha_inicio.split('-').map(Number)
+  const fechaBase = new Date(anioF, mesF - 1, diaF)
   const fechaCarga = format(fechaBase, 'yyyy-MM-dd')
 
   const gasto = await createGasto({

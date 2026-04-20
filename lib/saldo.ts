@@ -87,8 +87,10 @@ export function calcularSaldoMensual(
 ): SaldoData {
   const [anio, mesNum] = mes.split('-').map(Number)
   const pagosMes = pagos.filter(p => {
-    const fecha = new Date(p.fecha_vencimiento)
-    return fecha.getFullYear() === anio && fecha.getMonth() + 1 === mesNum
+    // Extraer año/mes del string directamente para evitar bugs de timezone
+    // (new Date("2026-03-01") en UTC-3 da febrero 28 local)
+    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
+    return y === anio && m === mesNum
   })
   return calcularSaldo(pagosMes, gastos, moneda)
 }
