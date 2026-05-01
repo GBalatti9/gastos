@@ -720,18 +720,27 @@ export function NuevoGastoForm({
               </div>
             )}
 
-            {/* Fecha de compra */}
-            <div className="space-y-1">
-              <p className="text-[12px] text-muted-foreground">Fecha de compra</p>
-              <input
-                type="date"
-                value={form.fecha_inicio}
-                onChange={e => set('fecha_inicio', e.target.value)}
-                className="w-full text-sm bg-muted rounded-[10px] px-3 py-2 text-foreground outline-none focus:ring-1 focus:ring-primary/30 border border-border"
-              />
-            </div>
           </div>
         )}
+
+        {/* ── Fecha de compra (siempre visible) ──────────────────────────── */}
+        <div
+          className="rounded-[20px] bg-card border border-border p-[20px] space-y-2"
+          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
+            Fecha de compra
+          </p>
+          <input
+            type="date"
+            value={form.fecha_inicio}
+            onChange={e => set('fecha_inicio', e.target.value)}
+            className="w-full text-sm bg-muted rounded-[10px] px-3 py-2 text-foreground outline-none focus:ring-1 focus:ring-primary/30 border border-border"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Opcional — si no la cambiás, se usa la fecha de hoy.
+          </p>
+        </div>
       </div>
 
       {/* ── Sticky CTA ──────────────────────────────────────────────────── */}

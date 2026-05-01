@@ -1,14 +1,17 @@
 import { SaldoData } from '@/lib/types'
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
+import { SaldarDeuda } from './saldar-deuda'
 
 interface Props {
   saldoARS: SaldoData
   saldoUSD: SaldoData
+  saldoTotalARS: SaldoData
+  saldoTotalUSD: SaldoData
   usuarioEmail: string
   mesLabel: string
 }
 
-export function SaldoMesCard({ saldoARS, saldoUSD, usuarioEmail, mesLabel }: Props) {
+export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD, usuarioEmail, mesLabel }: Props) {
   const equilibrado = saldoARS.monto_deuda < 1
   const yoSoyDeudor = saldoARS.deudor === usuarioEmail
   const montoFmt = Math.round(saldoARS.monto_deuda).toLocaleString('es-AR')
@@ -103,7 +106,7 @@ export function SaldoMesCard({ saldoARS, saldoUSD, usuarioEmail, mesLabel }: Pro
       </div>
 
       {/* USD pill footer */}
-      <div className="px-[22px] pb-5">
+      <div className="px-[22px] pb-5 space-y-3">
         <div className="flex items-center justify-between px-3 py-2 rounded-full bg-muted">
           <span className="text-[11px] font-semibold text-muted-foreground">USD</span>
           <span className="font-display italic text-[13px] text-muted-foreground">
@@ -115,6 +118,18 @@ export function SaldoMesCard({ saldoARS, saldoUSD, usuarioEmail, mesLabel }: Pro
             }
           </span>
         </div>
+
+        {/* Saldar deuda - usa saldo TOTAL, no mensual */}
+        {saldoTotalARS.monto_deuda >= 1 && (
+          <SaldarDeuda
+            montoDeudaARS={saldoTotalARS.monto_deuda}
+            montoDeudaUSD={saldoTotalUSD.monto_deuda}
+            deudorEmail={saldoTotalARS.deudor}
+            deudorNombre={saldoTotalARS.deudor === saldoTotalARS.user1.email ? saldoTotalARS.user1.nombre : saldoTotalARS.user2.nombre}
+            acreedorNombre={saldoTotalARS.acreedor === saldoTotalARS.user1.email ? saldoTotalARS.user1.nombre : saldoTotalARS.user2.nombre}
+            usuarioEmail={usuarioEmail}
+          />
+        )}
       </div>
     </div>
   )

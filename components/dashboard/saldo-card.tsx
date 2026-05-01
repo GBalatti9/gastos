@@ -2,6 +2,7 @@ import { SaldoData, Cierre } from '@/lib/types'
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { SaldarDeuda } from './saldar-deuda'
 
 interface Props {
   saldoARS: SaldoData
@@ -94,6 +95,20 @@ export function SaldoCard({ saldoARS, saldoUSD, usuarioEmail, cierres = [] }: Pr
             </p>
           </div>
         </div>
+
+        {/* Saldar deuda */}
+        {!equilibrado && (
+          <div className="px-[22px] pb-5">
+            <SaldarDeuda
+              montoDeudaARS={saldoARS.monto_deuda}
+              montoDeudaUSD={saldoUSD.monto_deuda}
+              deudorEmail={saldoARS.deudor}
+              deudorNombre={deudorNombre}
+              acreedorNombre={acreedorNombre}
+              usuarioEmail={usuarioEmail}
+            />
+          </div>
+        )}
       </div>
 
       {/* Monthly bar chart */}

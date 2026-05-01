@@ -10,6 +10,7 @@ import { CierreMes } from '@/components/dashboard/cierre-mes'
 import { MonthNavigator } from '@/components/dashboard/month-navigator'
 import { CuotasMes } from '@/components/dashboard/cuotas-mes'
 import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
+import { ResumenPerfiles } from '@/components/dashboard/resumen-perfiles'
 import { getUsers } from '@/lib/users'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -124,6 +125,8 @@ export default async function DashboardPage({
             <SaldoMesCard
               saldoARS={saldoMesARS}
               saldoUSD={saldoMesUSD}
+              saldoTotalARS={saldoARS}
+              saldoTotalUSD={saldoUSD}
               usuarioEmail={usuarioEmail}
               mesLabel={mesLabel}
             />
@@ -132,6 +135,8 @@ export default async function DashboardPage({
               pagos={pagosMesVenc}
               gastos={gastos}
               tarjetas={tarjetas}
+              usuarioEmail={usuarioEmail}
+              otroUsuarioNombre={u1.email === usuarioEmail ? u2.nombre : u1.nombre}
             />
 
             <ResumenMes
@@ -142,6 +147,14 @@ export default async function DashboardPage({
               totalUSD={totalMesUSD}
               user1USD={{ pagado: u1PagoMesUSD }}
               user2USD={{ pagado: u2PagoMesUSD }}
+            />
+
+            <ResumenPerfiles
+              gastos={gastos}
+              pagos={pagos}
+              user1={u1}
+              user2={u2}
+              mesSeleccionado={mesSeleccionado}
             />
           </>
         }

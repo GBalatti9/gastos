@@ -7,9 +7,11 @@ interface Props {
   pagos: Pago[]
   gastos: Gasto[]
   tarjetas: TarjetaCredito[]
+  usuarioEmail: string
+  otroUsuarioNombre: string
 }
 
-export function CuotasMes({ pagos, gastos, tarjetas }: Props) {
+export function CuotasMes({ pagos, gastos, tarjetas, usuarioEmail, otroUsuarioNombre }: Props) {
   if (pagos.length === 0) {
     return (
       <div
@@ -103,6 +105,8 @@ export function CuotasMes({ pagos, gastos, tarjetas }: Props) {
                     <p className="text-[12px] text-muted-foreground">
                       Cuota {pago.numero_cuota}/{gasto.cuotas} · Vence{' '}
                       {format(new Date(pago.fecha_vencimiento), 'd MMM', { locale: es })}
+                      {' · '}
+                      {gasto.pagado_por === usuarioEmail ? 'Pagaste vos' : `Pagó ${otroUsuarioNombre}`}
                     </p>
                   </div>
                 </div>
