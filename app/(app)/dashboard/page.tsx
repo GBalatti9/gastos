@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { getGastos, getPagos, getCategorias, getCierres, getTarjetas } from '@/lib/google-sheets'
-import { calcularSaldo, calcularSaldoMensual } from '@/lib/saldo'
+import { calcularSaldo, calcularSaldoMensual, calcularSaldoAcumulado } from '@/lib/saldo'
 import { SaldoCard } from '@/components/dashboard/saldo-card'
 import { SaldoMesCard } from '@/components/dashboard/saldo-mes-card'
 import { ProximosVencimientos } from '@/components/dashboard/proximos-vencimientos'
@@ -46,9 +46,13 @@ export default async function DashboardPage({
   const saldoARS = calcularSaldo(pagos, gastos, 'ARS')
   const saldoUSD = calcularSaldo(pagos, gastos, 'USD')
 
-  // ── Saldos mensuales ──────────────────────────────────────────────────
-  const saldoMesARS = calcularSaldoMensual(pagos, gastos, 'ARS', mesSeleccionado)
-  const saldoMesUSD = calcularSaldoMensual(pagos, gastos, 'USD', mesSeleccionado)
+  // ── Saldos mensuales (acumulado hasta el mes) ────────────────────────
+  const saldoMesARS = calcularSaldoAcumulado(pagos, gastos, 'ARS', mesSeleccionado)
+  const saldoMesUSD = calcularSaldoAcumulado(pagos, gastos, 'USD', mesSeleccionado)
+
+  // ── Movimiento solo del mes (para detalle secundario) ───────────────
+  const movMesARS = calcularSaldoMensual(pagos, gastos, 'ARS', mesSeleccionado)
+  const movMesUSD = calcularSaldoMensual(pagos, gastos, 'USD', mesSeleccionado)
 
   // ── Pagos del mes seleccionado (por fecha_vencimiento) ────────────────
   const pagosMesVenc = pagos.filter(p => {
@@ -127,6 +131,8 @@ export default async function DashboardPage({
               saldoUSD={saldoMesUSD}
               saldoTotalARS={saldoARS}
               saldoTotalUSD={saldoUSD}
+              movimientoARS={movMesARS}
+              movimientoUSD={movMesUSD}
               usuarioEmail={usuarioEmail}
               mesLabel={mesLabel}
             />

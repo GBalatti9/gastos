@@ -7,11 +7,13 @@ interface Props {
   saldoUSD: SaldoData
   saldoTotalARS: SaldoData
   saldoTotalUSD: SaldoData
+  movimientoARS?: SaldoData
+  movimientoUSD?: SaldoData
   usuarioEmail: string
   mesLabel: string
 }
 
-export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD, usuarioEmail, mesLabel }: Props) {
+export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD, movimientoARS, movimientoUSD, usuarioEmail, mesLabel }: Props) {
   const equilibrado = saldoARS.monto_deuda < 1
   const yoSoyDeudor = saldoARS.deudor === usuarioEmail
   const montoFmt = Math.round(saldoARS.monto_deuda).toLocaleString('es-AR')
@@ -37,7 +39,7 @@ export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD,
       {/* Header */}
       <div className="px-[22px] pt-5 flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
-          Saldo del mes
+          Saldo acumulado
         </p>
         <p className="text-[11px] text-muted-foreground capitalize">{mesLabel}</p>
       </div>
@@ -65,7 +67,7 @@ export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD,
             </span>
           </div>
         )}
-        <p className="text-[14px] text-muted-foreground mt-1.5 mb-4">
+        <p className="text-[14px] text-muted-foreground mt-1.5">
           {equilibrado
             ? 'Están al día'
             : yoSoyDeudor
@@ -73,6 +75,13 @@ export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD,
             : <><strong className="text-foreground font-semibold">{deudorNombre}</strong> te debe</>
           }
         </p>
+        {movimientoARS && movimientoARS.monto_deuda >= 1 && (
+          <p className="text-[12px] text-muted-foreground mt-0.5 mb-4">
+            Movimiento del mes: {movimientoARS.deudor === usuarioEmail ? '-' : '+'}
+            $ {Math.round(movimientoARS.monto_deuda).toLocaleString('es-AR')}
+          </p>
+        )}
+        {(!movimientoARS || movimientoARS.monto_deuda < 1) && <div className="mb-4" />}
       </div>
 
       {/* Full-bleed separator */}
