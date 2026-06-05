@@ -7,11 +7,13 @@ import { SaldarDeuda } from './saldar-deuda'
 interface Props {
   saldoARS: SaldoData
   saldoUSD: SaldoData
+  saldoFuturoARS: SaldoData
+  saldoFuturoUSD: SaldoData
   usuarioEmail: string
   cierres?: Cierre[]
 }
 
-export function SaldoCard({ saldoARS, saldoUSD, usuarioEmail, cierres = [] }: Props) {
+export function SaldoCard({ saldoARS, saldoUSD, saldoFuturoARS, saldoFuturoUSD, usuarioEmail, cierres = [] }: Props) {
   const equilibrado = saldoARS.monto_deuda < 1
   const yoSoyDeudor = saldoARS.deudor === usuarioEmail
   const montoFmt = Math.round(saldoARS.monto_deuda).toLocaleString('es-AR')
@@ -95,6 +97,24 @@ export function SaldoCard({ saldoARS, saldoUSD, usuarioEmail, cierres = [] }: Pr
             </p>
           </div>
         </div>
+
+        {/* Pagos futuros */}
+        {saldoFuturoARS.monto_deuda >= 1 && (() => {
+          const futuroDeudorNombre = saldoFuturoARS.deudor === saldoFuturoARS.user1.email
+            ? saldoFuturoARS.user1.nombre : saldoFuturoARS.user2.nombre
+          const futuroAcreedorNombre = saldoFuturoARS.acreedor === saldoFuturoARS.user1.email
+            ? saldoFuturoARS.user1.nombre : saldoFuturoARS.user2.nombre
+          const futuroMontoFmt = Math.round(saldoFuturoARS.monto_deuda).toLocaleString('es-AR')
+          return (
+            <div className="px-[22px] pb-4">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50">
+                <span className="text-[11px] text-muted-foreground">
+                  En cuotas futuras, <strong className="text-foreground">{futuroAcreedorNombre}</strong> tiene $ {futuroMontoFmt} más comprometidos que {futuroDeudorNombre}
+                </span>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Saldar deuda */}
         {!equilibrado && (

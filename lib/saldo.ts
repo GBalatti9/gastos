@@ -100,6 +100,23 @@ export function calcularSaldoMensual(
  * Incluye todos los pagos con fecha_vencimiento <= último día del mes.
  * Esto da el comportamiento "Splitwise" donde deudas impagas se arrastran.
  */
+/**
+ * Calcula el saldo solo con pagos cuya fecha_vencimiento > fin del mes indicado (futuro).
+ */
+export function calcularSaldoFuturo(
+  pagos: Pago[],
+  gastos: Gasto[],
+  moneda: Moneda,
+  mes: string // formato: "2026-06"
+): SaldoData {
+  const [anio, mesNum] = mes.split('-').map(Number)
+  const pagosFuturos = pagos.filter(p => {
+    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
+    return y > anio || (y === anio && m > mesNum)
+  })
+  return calcularSaldo(pagosFuturos, gastos, moneda)
+}
+
 export function calcularSaldoAcumulado(
   pagos: Pago[],
   gastos: Gasto[],

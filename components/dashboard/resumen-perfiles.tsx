@@ -130,7 +130,7 @@ export function ResumenPerfiles({ gastos, pagos, user1, user2, mesSeleccionado }
                           {gasto.categoria}
                           {cuotasTotal > 1 && (
                             <span>
-                              {' · '}cuota {cuotasPagadas + 1}/{cuotasTotal}
+                              {' · '}cuota {Math.min(cuotasPagadas, cuotasTotal)}/{cuotasTotal}
                             </span>
                           )}
                         </p>

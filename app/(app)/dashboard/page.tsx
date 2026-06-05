@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { getGastos, getPagos, getCategorias, getCierres, getTarjetas } from '@/lib/google-sheets'
-import { calcularSaldo, calcularSaldoMensual, calcularSaldoAcumulado } from '@/lib/saldo'
+import { calcularSaldoMensual, calcularSaldoAcumulado, calcularSaldoFuturo } from '@/lib/saldo'
 import { SaldoCard } from '@/components/dashboard/saldo-card'
 import { SaldoMesCard } from '@/components/dashboard/saldo-mes-card'
 import { ProximosVencimientos } from '@/components/dashboard/proximos-vencimientos'
@@ -42,9 +42,13 @@ export default async function DashboardPage({
 
   const [u1, u2] = getUsers()
 
-  // ── Saldos totales ─────────────────────────────────────────────────────
-  const saldoARS = calcularSaldo(pagos, gastos, 'ARS')
-  const saldoUSD = calcularSaldo(pagos, gastos, 'USD')
+  // ── Saldos totales (hasta fin del mes actual) ──────────────────────────
+  const mesActual = format(hoy, 'yyyy-MM')
+  const saldoARS = calcularSaldoAcumulado(pagos, gastos, 'ARS', mesActual)
+  const saldoUSD = calcularSaldoAcumulado(pagos, gastos, 'USD', mesActual)
+  // Pagos futuros = pagos con vencimiento después del mes actual
+  const saldoFuturoARS = calcularSaldoFuturo(pagos, gastos, 'ARS', mesActual)
+  const saldoFuturoUSD = calcularSaldoFuturo(pagos, gastos, 'USD', mesActual)
 
   // ── Saldos mensuales (acumulado hasta el mes) ────────────────────────
   const saldoMesARS = calcularSaldoAcumulado(pagos, gastos, 'ARS', mesSeleccionado)
@@ -118,7 +122,6 @@ export default async function DashboardPage({
   }).filter(c => c.total > 0)
 
   const gastosActivos = gastos.filter(g => g.estado === 'activo')
-  const mesActual = format(hoy, 'yyyy-MM')
 
   return (
     <div className="py-6 space-y-4">
@@ -169,6 +172,8 @@ export default async function DashboardPage({
             <SaldoCard
               saldoARS={saldoARS}
               saldoUSD={saldoUSD}
+              saldoFuturoARS={saldoFuturoARS}
+              saldoFuturoUSD={saldoFuturoUSD}
               usuarioEmail={usuarioEmail}
               cierres={cierres}
             />
