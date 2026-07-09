@@ -18,6 +18,8 @@ export default async function GastoDetallePage({ params }: { params: Promise<{ i
   ])
 
   if (!gasto) notFound()
+  // Gastos personales solo visibles para su dueño
+  if (gasto.tipo_division === 'personal' && gasto.pagado_por !== email) notFound()
 
   const pagos = await getPagosByGastoId(id)
   const tarjeta = gasto.tarjeta_id ? await getTarjetaById(gasto.tarjeta_id) : null
@@ -25,18 +27,16 @@ export default async function GastoDetallePage({ params }: { params: Promise<{ i
   const otroUsuario = getOtherUser(email)
 
   return (
-    <div className="py-6">
-      <GastoDetalle
-        gasto={gasto}
-        pagos={pagos}
-        categorias={categorias}
-        tarjetas={todasTarjetas}
-        tarjeta={tarjeta}
-        usuarioEmail={email}
-        usuarioNombre={usuario?.nombre || session?.user?.name || ''}
-        otroUsuarioEmail={otroUsuario?.email || ''}
-        otroUsuarioNombre={otroUsuario?.nombre || ''}
-      />
-    </div>
+    <GastoDetalle
+      gasto={gasto}
+      pagos={pagos}
+      categorias={categorias}
+      tarjetas={todasTarjetas}
+      tarjeta={tarjeta}
+      usuarioEmail={email}
+      usuarioNombre={usuario?.nombre || session?.user?.name || ''}
+      otroUsuarioEmail={otroUsuario?.email || ''}
+      otroUsuarioNombre={otroUsuario?.nombre || ''}
+    />
   )
 }

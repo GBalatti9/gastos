@@ -1,4 +1,4 @@
-export type TipoDivision = '50/50' | 'porcentaje' | 'monto_fijo'
+export type TipoDivision = '50/50' | 'porcentaje' | 'monto_fijo' | 'personal'
 export type Moneda = 'ARS' | 'USD'
 export type MetodoPago = 'efectivo' | 'debito' | 'mercadopago' | 'credito'
 

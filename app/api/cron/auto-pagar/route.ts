@@ -3,8 +3,10 @@ import { getGastos, getPagos, marcarPagoComoPagado } from '@/lib/google-sheets'
 import { format } from 'date-fns'
 
 /**
- * Marca como pagadas las cuotas vencidas de gastos con débito automático o tarjeta de crédito.
- * Estos métodos de pago se cobran automáticamente, no requieren acción manual.
+ * Marca como pagadas todas las cuotas vencidas.
+ * Débito/crédito se cobran automáticamente; efectivo/mercadopago se asumen
+ * pagados al vencer (los gastos en efectivo nuevos ya nacen pagados por
+ * carga inmediata — esto cubre data vieja y casos borde).
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
@@ -15,14 +17,11 @@ export async function GET(req: Request) {
   const [gastos, pagos] = await Promise.all([getGastos(), getPagos()])
   const hoy = format(new Date(), 'yyyy-MM-dd')
 
-  const metodosAutomaticos = new Set(['debito', 'credito'])
-
   const pendientesVencidos = pagos.filter(p => {
     if (p.estado !== 'pendiente') return false
     if (p.fecha_vencimiento > hoy) return false
     const gasto = gastos.find(g => g.id === p.gasto_id)
-    if (!gasto || gasto.estado !== 'activo') return false
-    return metodosAutomaticos.has(gasto.metodo_pago)
+    return gasto && gasto.estado === 'activo'
   })
 
   const marcados: string[] = []

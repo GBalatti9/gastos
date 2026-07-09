@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -95,12 +96,7 @@ export function SaldarDeuda({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpen}>
-      <AlertDialogTrigger
-        className="w-full py-2.5 rounded-[12px] text-[13px] font-semibold transition-all bg-foreground text-background hover:opacity-90"
-        style={{ boxShadow: '0 2px 8px rgba(42,31,23,0.15)' }}
-      >
-        Saldar deuda
-      </AlertDialogTrigger>
+      <AlertDialogTrigger render={<Button size="lg" />}>Saldar deuda</AlertDialogTrigger>
 
       <AlertDialogContent>
         <AlertDialogHeader>

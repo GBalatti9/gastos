@@ -100,9 +100,9 @@ export function SaldoMesCard({ saldoARS, saldoUSD, saldoTotalARS, saldoTotalUSD,
         <div className="h-1.5 rounded-full overflow-hidden bg-muted flex">
           <div
             className="h-full rounded-l-full"
-            style={{ width: `${pct1}%`, backgroundColor: '#B8876B' }}
+            style={{ width: `${pct1}%`, backgroundColor: '#7CC0EE' }}
           />
-          <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#8B5E3C' }} />
+          <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#2E86C1' }} />
         </div>
         <div className="flex justify-between">
           <span className="text-[14px] font-semibold text-foreground">

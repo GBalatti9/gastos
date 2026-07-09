@@ -1,196 +1,140 @@
 import { auth } from '@/lib/auth'
-import { getGastos, getPagos, getCategorias, getCierres, getTarjetas } from '@/lib/google-sheets'
-import { calcularSaldoMensual, calcularSaldoAcumulado, calcularSaldoFuturo } from '@/lib/saldo'
-import { SaldoCard } from '@/components/dashboard/saldo-card'
-import { SaldoMesCard } from '@/components/dashboard/saldo-mes-card'
-import { ProximosVencimientos } from '@/components/dashboard/proximos-vencimientos'
-import { ResumenMes } from '@/components/dashboard/resumen-mes'
-import { GastosActivos } from '@/components/dashboard/gastos-activos'
-import { CierreMes } from '@/components/dashboard/cierre-mes'
-import { MonthNavigator } from '@/components/dashboard/month-navigator'
-import { CuotasMes } from '@/components/dashboard/cuotas-mes'
-import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
-import { ResumenPerfiles } from '@/components/dashboard/resumen-perfiles'
+import { getGastos, getPagos, getCategorias } from '@/lib/google-sheets'
+import { calcularSaldoAcumulado } from '@/lib/saldo'
+import { DeudaCard } from '@/components/dashboard/deuda-card'
+import { SectionCards } from '@/components/dashboard/section-cards'
+import { ChartGastos, ChartPoint } from '@/components/dashboard/chart-gastos'
+import { GastosDataTable } from '@/components/dashboard/gastos-data-table'
 import { getUsers } from '@/lib/users'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export const revalidate = 60
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mes?: string }>
-}) {
+export default async function DashboardPage() {
   const session = await auth()
   const usuarioEmail = session?.user?.email || ''
-  const { mes: mesParam } = await searchParams
 
   const hoy = new Date()
-  const mesSeleccionado = mesParam || format(hoy, 'yyyy-MM')
-  const [anioSel, mesSel] = mesSeleccionado.split('-').map(Number)
-  const fechaMes = new Date(anioSel, mesSel - 1, 1)
-  const mesLabel = format(fechaMes, 'MMMM yyyy', { locale: es })
+  const mesActual = format(hoy, 'yyyy-MM')
+  const [anioAct, mesAct] = mesActual.split('-').map(Number)
 
-  const [gastos, pagos, categorias, cierres, tarjetas] = await Promise.all([
+  const [gastos, pagos, categorias] = await Promise.all([
     getGastos(),
     getPagos(),
     getCategorias(),
-    getCierres(),
-    getTarjetas(),
   ])
 
   const [u1, u2] = getUsers()
+  const gastosActivos = gastos.filter(
+    (g) => g.estado === 'activo' && g.tipo_division !== 'personal'
+  )
+  const esActivoARS = (gastoId: string) => {
+    const g = gastos.find((g) => g.id === gastoId)
+    return (
+      g &&
+      g.estado === 'activo' &&
+      (g.moneda || 'ARS') === 'ARS' &&
+      g.tipo_division !== 'personal'
+    )
+  }
 
-  // ── Saldos totales (hasta fin del mes actual) ──────────────────────────
-  const mesActual = format(hoy, 'yyyy-MM')
+  // ── Saldos ────────────────────────────────────────────────────────────
   const saldoARS = calcularSaldoAcumulado(pagos, gastos, 'ARS', mesActual)
   const saldoUSD = calcularSaldoAcumulado(pagos, gastos, 'USD', mesActual)
-  // Pagos futuros = pagos con vencimiento después del mes actual
-  const saldoFuturoARS = calcularSaldoFuturo(pagos, gastos, 'ARS', mesActual)
-  const saldoFuturoUSD = calcularSaldoFuturo(pagos, gastos, 'USD', mesActual)
 
-  // ── Saldos mensuales (acumulado hasta el mes) ────────────────────────
-  const saldoMesARS = calcularSaldoAcumulado(pagos, gastos, 'ARS', mesSeleccionado)
-  const saldoMesUSD = calcularSaldoAcumulado(pagos, gastos, 'USD', mesSeleccionado)
+  // ── Gastado este mes vs mes anterior (por fecha_pago, ARS) ─────────────
+  const pagosEnMes = (anio: number, mes: number) =>
+    pagos.filter((p) => {
+      if (!p.fecha_pago) return false
+      const [y, m] = p.fecha_pago.split('-').map(Number)
+      return y === anio && m === mes && esActivoARS(p.gasto_id)
+    })
 
-  // ── Movimiento solo del mes (para detalle secundario) ───────────────
-  const movMesARS = calcularSaldoMensual(pagos, gastos, 'ARS', mesSeleccionado)
-  const movMesUSD = calcularSaldoMensual(pagos, gastos, 'USD', mesSeleccionado)
+  const pagosGastadoMes = pagosEnMes(anioAct, mesAct)
+  const gastadoMes = pagosGastadoMes.reduce((s, p) => s + p.monto, 0)
+  const prevMes = mesAct === 1 ? 12 : mesAct - 1
+  const prevAnio = mesAct === 1 ? anioAct - 1 : anioAct
+  const gastadoMesPrev = pagosEnMes(prevAnio, prevMes).reduce((s, p) => s + p.monto, 0)
 
-  // ── Pagos del mes seleccionado (por fecha_vencimiento) ────────────────
-  const pagosMesVenc = pagos.filter(p => {
+  // ── Comprometido: todas las cuotas pendientes (ARS) ────────────────────
+  const comprometido = pagos.filter(
+    (p) => p.estado === 'pendiente' && esActivoARS(p.gasto_id)
+  )
+  const comprometidoMonto = comprometido.reduce((s, p) => s + p.monto, 0)
+
+  // ── Cuotas del mes actual (por fecha_vencimiento, ARS) ─────────────────
+  const pagosMesVenc = pagos.filter((p) => {
     const [y, m] = p.fecha_vencimiento.split('-').map(Number)
-    return y === anioSel && m === mesSel
-  }).filter(p => {
-    const gasto = gastos.find(g => g.id === p.gasto_id)
-    return gasto && gasto.estado === 'activo'
+    return y === anioAct && m === mesAct && esActivoARS(p.gasto_id)
   })
+  const cuotasMesPagadas = pagosMesVenc.filter((p) => p.estado === 'pagado').length
 
-  // ── Próximos vencimientos (30 días) ──────────────────────────────────
-  const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000)
-  const proximos = pagos
-    .filter(p => {
-      if (p.estado !== 'pendiente') return false
-      const fecha = new Date(p.fecha_vencimiento)
-      return fecha >= hoy && fecha <= en30dias
-    })
-    .map(p => {
-      const gasto = gastos.find(g => g.id === p.gasto_id)
-      if (!gasto || gasto.estado === 'cancelado') return null
-      const msRestantes = new Date(p.fecha_vencimiento).getTime() - hoy.getTime()
-      const dias = Math.ceil(msRestantes / (1000 * 60 * 60 * 24))
-      return { pago: p, gasto, dias_restantes: dias }
-    })
-    .filter(Boolean)
-    .sort((a, b) => a!.dias_restantes - b!.dias_restantes) as any[]
-
-  // ── Resumen del mes (pagos realizados en el mes) ──────────────────────
-  const inicioMes = new Date(anioSel, mesSel - 1, 1)
-  const finMes = new Date(anioSel, mesSel, 0)
-
-  const pagosMes = pagos.filter(p => {
-    if (!p.fecha_pago) return false
-    const f = new Date(p.fecha_pago)
-    return f >= inicioMes && f <= finMes
-  })
-
-  const pagosMesARS = pagosMes.filter(p => {
-    const g = gastos.find(g => g.id === p.gasto_id)
-    return (g?.moneda || 'ARS') === 'ARS'
-  })
-  const totalMesARS = pagosMesARS.reduce((s, p) => s + p.monto, 0)
-  const u1PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
-  const u2PagoMesARS = pagosMesARS.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
-
-  const pagosMesUSD = pagosMes.filter(p => {
-    const g = gastos.find(g => g.id === p.gasto_id)
-    return g?.moneda === 'USD'
-  })
-  const totalMesUSD = pagosMesUSD.reduce((s, p) => s + p.monto, 0)
-  const u1PagoMesUSD = pagosMesUSD.filter(p => p.pagado_por === u1.email).reduce((s, p) => s + p.monto, 0)
-  const u2PagoMesUSD = pagosMesUSD.filter(p => p.pagado_por === u2.email).reduce((s, p) => s + p.monto, 0)
-
-  const porCategoria = categorias.map(cat => {
-    const total = pagosMesARS
-      .filter(p => {
-        const g = gastos.find(g => g.id === p.gasto_id)
-        return g?.categoria === cat.nombre
+  // ── Serie mensual para el chart (últimos 12 meses, ARS) ────────────────
+  const chartData: ChartPoint[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(anioAct, mesAct - 1 - i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth() + 1
+    let uno = 0
+    let dos = 0
+    const detalle: ChartPoint['pagos'] = []
+    for (const p of pagos) {
+      const [py, pm] = p.fecha_vencimiento.split('-').map(Number)
+      if (py !== y || pm !== m || !esActivoARS(p.gasto_id)) continue
+      const g = gastos.find((g) => g.id === p.gasto_id)!
+      const pagador = p.pagado_por || g.pagado_por
+      if (pagador === u1.email) uno += p.monto
+      else if (pagador === u2.email) dos += p.monto
+      detalle.push({
+        id: p.id,
+        descripcion: g.descripcion,
+        monto: p.monto,
+        pagador: pagador === u1.email ? u1.nombre : u2.nombre,
+        fecha: p.fecha_vencimiento,
+        estado: p.estado,
       })
-      .reduce((s, p) => s + p.monto, 0)
-    return { categoria: cat.nombre, total, color: cat.color }
-  }).filter(c => c.total > 0)
-
-  const gastosActivos = gastos.filter(g => g.estado === 'activo')
+    }
+    detalle.sort((a, b) => b.monto - a.monto)
+    chartData.push({
+      month: format(d, 'MMM', { locale: es }),
+      mesLabel: format(d, 'MMMM yyyy', { locale: es }),
+      u1: uno,
+      u2: dos,
+      pagos: detalle,
+    })
+  }
 
   return (
-    <div className="py-6 space-y-4">
-      <DashboardTabs
-        mesContent={
-          <>
-            <MonthNavigator mes={mesSeleccionado} />
-            <SaldoMesCard
-              saldoARS={saldoMesARS}
-              saldoUSD={saldoMesUSD}
-              saldoTotalARS={saldoARS}
-              saldoTotalUSD={saldoUSD}
-              movimientoARS={movMesARS}
-              movimientoUSD={movMesUSD}
-              usuarioEmail={usuarioEmail}
-              mesLabel={mesLabel}
-            />
+    <div className="flex flex-col gap-4 md:gap-6">
+      <DeudaCard saldoARS={saldoARS} saldoUSD={saldoUSD} usuarioEmail={usuarioEmail} />
 
-            <CuotasMes
-              pagos={pagosMesVenc}
-              gastos={gastos}
-              tarjetas={tarjetas}
-              usuarioEmail={usuarioEmail}
-              otroUsuarioNombre={u1.email === usuarioEmail ? u2.nombre : u1.nombre}
-            />
-
-            <ResumenMes
-              total={totalMesARS}
-              porCategoria={porCategoria}
-              user1={{ ...u1, pagado: u1PagoMesARS }}
-              user2={{ ...u2, pagado: u2PagoMesARS }}
-              totalUSD={totalMesUSD}
-              user1USD={{ pagado: u1PagoMesUSD }}
-              user2USD={{ pagado: u2PagoMesUSD }}
-            />
-
-            <ResumenPerfiles
-              gastos={gastos}
-              pagos={pagos}
-              user1={u1}
-              user2={u2}
-              mesSeleccionado={mesSeleccionado}
-            />
-          </>
-        }
-        totalContent={
-          <>
-            <SaldoCard
-              saldoARS={saldoARS}
-              saldoUSD={saldoUSD}
-              saldoFuturoARS={saldoFuturoARS}
-              saldoFuturoUSD={saldoFuturoUSD}
-              usuarioEmail={usuarioEmail}
-              cierres={cierres}
-            />
-
-            <ProximosVencimientos proximos={proximos} />
-
-            <CierreMes
-              cierres={cierres}
-              saldoARS={saldoARS}
-              saldoUSD={saldoUSD}
-              mesActual={mesActual}
-            />
-
-            <GastosActivos gastos={gastosActivos} pagos={pagos} categorias={categorias} />
-          </>
-        }
+      <SectionCards
+        gastadoMes={gastadoMes}
+        gastadoMesPrev={gastadoMesPrev}
+        comprometidoMonto={comprometidoMonto}
+        comprometidoCuotas={comprometido.length}
+        cuotasMesTotal={pagosMesVenc.length}
+        cuotasMesPagadas={cuotasMesPagadas}
+        pagosGastadoMes={pagosGastadoMes}
+        pagosComprometido={comprometido}
+        pagosCuotasMes={pagosMesVenc}
+        gastos={gastosActivos}
+        usuarios={{ [u1.email]: u1.nombre, [u2.email]: u2.nombre }}
       />
+
+      <ChartGastos data={chartData} u1Nombre={u1.nombre} u2Nombre={u2.nombre} />
+
+      <GastosDataTable
+        gastos={gastosActivos}
+        pagos={pagos}
+        categorias={categorias}
+        usuarios={[
+          { email: u1.email, nombre: u1.nombre },
+          { email: u2.email, nombre: u2.nombre },
+        ]}
+      />
+
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { Gasto, Pago, SaldoData, Moneda } from './types'
 import { getUsers } from './users'
 
 // Calcula cuánto debería haber pagado cada usuario para un gasto dado
-function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: number; u2: number } {
+export function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: number; u2: number } {
   const [u1] = getUsers()
   const pagadorEsU1 = gasto.pagado_por === u1.email
 
@@ -23,6 +23,9 @@ function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: number;
         ? { u1: resto, u2: montoFijo }
         : { u1: montoFijo, u2: resto }
     }
+    case 'personal':
+      // Gasto personal: el pagador asume el 100%, no genera deuda
+      return pagadorEsU1 ? { u1: montoPago, u2: 0 } : { u1: 0, u2: montoPago }
     case '50/50':
     default:
       return { u1: montoPago / 2, u2: montoPago / 2 }
@@ -35,7 +38,9 @@ export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = '
   // Incluir todos los pagos activos (pendientes y pagados)
   // Para pendientes, el pagador es quien figura en el gasto (gasto.pagado_por)
   // Para pagados, el pagador es quien realmente lo abonó (pago.pagado_por)
-  const gastosFiltrados = gastos.filter(g => (g.moneda || 'ARS') === moneda && g.estado === 'activo')
+  const gastosFiltrados = gastos.filter(
+    g => (g.moneda || 'ARS') === moneda && g.estado === 'activo' && g.tipo_division !== 'personal'
+  )
   const gastoIds = new Set(gastosFiltrados.map(g => g.id))
 
   let debeU1 = 0

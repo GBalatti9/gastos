@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
   const payload: NotificacionPayload = await req.json()
   const { tipo, gasto, pago, autor_email, autor_nombre } = payload
 
+  // Gastos personales no notifican a la pareja
+  if (gasto.tipo_division === 'personal') {
+    return NextResponse.json({ ok: true, skipped: true })
+  }
+
   const autor = getUserByEmail(autor_email) || { email: autor_email, nombre: autor_nombre }
   const destinatario = getOtherUser(autor_email)
 

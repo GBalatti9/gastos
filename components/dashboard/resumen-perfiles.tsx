@@ -91,7 +91,7 @@ export function ResumenPerfiles({ gastos, pagos, user1, user2, mesSeleccionado }
             <div className="flex items-center gap-2">
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold text-background"
-                style={{ backgroundColor: '#8B5E3C' }}
+                style={{ backgroundColor: '#2E86C1' }}
               >
                 {user.nombre.charAt(0).toUpperCase()}
               </div>

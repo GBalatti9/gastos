@@ -47,7 +47,7 @@ export function CuotasMes({ pagos, gastos, tarjetas, usuarioEmail, otroUsuarioNo
         <Link
           href="/gastos"
           className="text-[12px] font-semibold"
-          style={{ color: '#8B5E3C' }}
+          style={{ color: '#2E86C1' }}
         >
           Ver todas
         </Link>

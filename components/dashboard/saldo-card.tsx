@@ -149,7 +149,7 @@ export function SaldoCard({ saldoARS, saldoUSD, saldoFuturoARS, saldoFuturoUSD, 
                 ? `${(c.deuda_final / 1000).toFixed(0)}k`
                 : `${Math.round(c.deuda_final)}`
               const esDeudor = c.deudor === usuarioEmail
-              const barColor = c.deuda_final < 1 ? '#8A7565' : esDeudor ? '#C23B2A' : '#5E7A3C'
+              const barColor = c.deuda_final < 1 ? '#94A3B8' : esDeudor ? '#C23B2A' : '#5E7A3C'
               return (
                 <div key={c.id} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] font-semibold" style={{ color: barColor }}>

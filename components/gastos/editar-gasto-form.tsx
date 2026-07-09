@@ -287,7 +287,9 @@ export function EditarGastoForm({
     { value: '50/50', label: '50 / 50' },
     { value: 'porcentaje', label: 'Personalizada' },
     { value: 'monto_fijo', label: `Monto fijo ${otroUsuarioNombre}` },
+    { value: 'personal', label: 'Personal' },
   ]
+  const esPersonal = form.tipo_division === 'personal'
 
   return (
     <form onSubmit={handleSubmit} className="pb-28">
@@ -345,7 +347,7 @@ export function EditarGastoForm({
               value={form.monto_total}
               onChange={e => set('monto_total', e.target.value.replace(/[^\d.,]/g, ''))}
               className="flex-1 font-display italic text-[44px] leading-none bg-transparent text-foreground placeholder:text-muted-foreground/40 outline-none w-0"
-              style={{ caretColor: '#8B5E3C' }}
+              style={{ caretColor: '#2E86C1' }}
             />
           </div>
 
@@ -423,6 +425,7 @@ export function EditarGastoForm({
           </p>
 
           {/* Pagado por */}
+          {!esPersonal && (
           <div className="space-y-2">
             <p className="text-[12px] text-muted-foreground">Pagado por</p>
             <div className="flex gap-2">
@@ -443,6 +446,7 @@ export function EditarGastoForm({
               ))}
             </div>
           </div>
+          )}
 
           {/* Método */}
           <div className="space-y-2">
@@ -477,7 +481,13 @@ export function EditarGastoForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => set('tipo_division', opt.value)}
+                  onClick={() => {
+                    set('tipo_division', opt.value)
+                    if (opt.value === 'personal') {
+                      set('pagado_por', usuarioEmail)
+                      set('division_valor', '')
+                    }
+                  }}
                   className={cn(
                     'px-3 py-2 rounded-[10px] text-[13px] font-semibold transition-all',
                     form.tipo_division === opt.value
@@ -530,7 +540,7 @@ export function EditarGastoForm({
           </div>
 
           {/* Split preview */}
-          {split && montoCuota > 0 && (
+          {!esPersonal && split && montoCuota > 0 && (
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="rounded-[10px] bg-muted/50 px-3 py-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{usuarioNombre}</p>

@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Categoria, TarjetaCredito } from '@/lib/types'
 import { calcularFechaVencimientoCuota } from '@/lib/billing-cycle'
-import { Loader2, ChevronLeft, CreditCard, Plus } from 'lucide-react'
+import { Loader2, CreditCard, Plus } from 'lucide-react'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +21,8 @@ interface Props {
   usuarioNombre: string
   otroUsuarioEmail: string
   otroUsuarioNombre: string
+  /** Se llama al guardar OK (ej. para cerrar el dialog). */
+  onSuccess?: () => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -229,6 +232,7 @@ export function NuevoGastoForm({
   usuarioNombre,
   otroUsuarioEmail,
   otroUsuarioNombre,
+  onSuccess,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -302,20 +306,22 @@ export function NuevoGastoForm({
       })
       if (!res.ok) throw new Error('Error al guardar')
       const { gasto } = await res.json()
-      try {
-        await fetch('/api/notificaciones', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tipo: 'nuevo_gasto',
-            gasto,
-            autor_email: usuarioEmail,
-            autor_nombre: usuarioNombre,
-          }),
-        })
-      } catch {}
+      if (form.tipo_division !== 'personal') {
+        try {
+          await fetch('/api/notificaciones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tipo: 'nuevo_gasto',
+              gasto,
+              autor_email: usuarioEmail,
+              autor_nombre: usuarioNombre,
+            }),
+          })
+        } catch {}
+      }
       toast.success('Gasto guardado')
-      router.push('/gastos')
+      onSuccess?.()
       router.refresh()
     } catch {
       toast.error('Error al guardar el gasto')
@@ -341,7 +347,9 @@ export function NuevoGastoForm({
     { value: '50/50', label: '50 / 50' },
     { value: 'porcentaje', label: 'Personalizada' },
     { value: 'monto_fijo', label: `Monto fijo ${otroUsuarioNombre}` },
+    { value: 'personal', label: 'Personal' },
   ]
+  const esPersonal = form.tipo_division === 'personal'
 
   // ─── Cuotas presets ──────────────────────────────────────────────────────
   const cuotasPresets = [
@@ -355,29 +363,11 @@ export function NuevoGastoForm({
   const isCustomCuotas = !presetValues.includes(form.cuotas)
 
   return (
-    <form onSubmit={handleSubmit} className="pb-28">
-      {/* Form header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="flex items-center gap-0.5 text-[15px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="h-5 w-5" />
-          Cancelar
-        </button>
-        <span className="font-display italic text-[17px] font-semibold text-foreground whitespace-nowrap">
-          Nuevo gasto
-        </span>
-        <div className="w-[80px]" />
-      </div>
-
+    <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         {/* ── Hero monto ──────────────────────────────────────────────────── */}
         <div
-          className="rounded-[20px] bg-card border border-border p-[20px] space-y-3"
-          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
-        >
+          className="rounded-xl border bg-muted/20 p-4 space-y-3"        >
           <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
             Monto
           </p>
@@ -410,8 +400,7 @@ export function NuevoGastoForm({
               placeholder="0"
               value={form.monto_total}
               onChange={e => set('monto_total', e.target.value.replace(/[^\d.,]/g, ''))}
-              className="flex-1 font-display italic text-[44px] leading-none bg-transparent text-foreground placeholder:text-muted-foreground/40 outline-none w-0"
-              style={{ caretColor: '#8B5E3C' }}
+              className="flex-1 text-4xl font-semibold tabular-nums leading-none bg-transparent text-foreground placeholder:text-muted-foreground/40 outline-none w-0"
             />
           </div>
 
@@ -427,9 +416,7 @@ export function NuevoGastoForm({
 
         {/* ── Categoría ───────────────────────────────────────────────────── */}
         <div
-          className="rounded-[20px] bg-card border border-border p-[20px]"
-          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
-        >
+          className="rounded-xl border bg-muted/20 p-4"        >
           <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground mb-3">
             Categoría <span className="text-orange-alert">*</span>
           </p>
@@ -482,14 +469,13 @@ export function NuevoGastoForm({
 
         {/* ── Pago ────────────────────────────────────────────────────────── */}
         <div
-          className="rounded-[20px] bg-card border border-border p-[20px] space-y-4"
-          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
-        >
+          className="rounded-xl border bg-muted/20 p-4 space-y-4"        >
           <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
             Pago
           </p>
 
           {/* Pagado por */}
+          {!esPersonal && (
           <div className="space-y-2">
             <p className="text-[12px] text-muted-foreground">Pagado por</p>
             <div className="flex gap-2">
@@ -510,6 +496,7 @@ export function NuevoGastoForm({
               ))}
             </div>
           </div>
+          )}
 
           {/* Método */}
           <div className="space-y-2">
@@ -550,7 +537,13 @@ export function NuevoGastoForm({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => set('tipo_division', opt.value)}
+                  onClick={() => {
+                    set('tipo_division', opt.value)
+                    if (opt.value === 'personal') {
+                      set('pagado_por', usuarioEmail)
+                      set('division_valor', '')
+                    }
+                  }}
                   className={cn(
                     'px-3 py-2 rounded-[10px] text-[13px] font-semibold transition-all',
                     form.tipo_division === opt.value
@@ -603,7 +596,7 @@ export function NuevoGastoForm({
           </div>
 
           {/* Split preview */}
-          {split && montoCuota > 0 && (
+          {!esPersonal && split && montoCuota > 0 && (
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="rounded-[10px] bg-muted/50 px-3 py-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{usuarioNombre}</p>
@@ -620,8 +613,7 @@ export function NuevoGastoForm({
         {/* ── Cuotas (solo crédito) ────────────────────────────────────── */}
         {isCredito && (
           <div
-            className="rounded-[20px] bg-card border border-border p-[20px] space-y-4"
-            style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
+            className="rounded-xl border bg-muted/20 p-4 space-y-4"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
               Cuotas
@@ -724,10 +716,7 @@ export function NuevoGastoForm({
         )}
 
         {/* ── Fecha de compra (siempre visible) ──────────────────────────── */}
-        <div
-          className="rounded-[20px] bg-card border border-border p-[20px] space-y-2"
-          style={{ boxShadow: '0 1px 2px rgba(42,31,23,0.04)' }}
-        >
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-muted-foreground">
             Fecha de compra
           </p>
@@ -741,32 +730,13 @@ export function NuevoGastoForm({
             Opcional — si no la cambiás, se usa la fecha de hoy.
           </p>
         </div>
-      </div>
-
-      {/* ── Sticky CTA ──────────────────────────────────────────────────── */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-[84px] pt-4"
-        style={{
-          background: 'linear-gradient(to bottom, transparent, var(--background) 40%)',
-        }}
-      >
-        <button
-          type="submit"
-          disabled={loading || !ctaEnabled}
-          className={cn(
-            'w-full h-12 rounded-[14px] text-[15px] font-semibold transition-all',
-            ctaEnabled
-              ? 'bg-foreground text-background'
-              : 'bg-muted text-muted-foreground cursor-not-allowed'
-          )}
-          style={ctaEnabled ? { boxShadow: '0 4px 12px rgba(42,31,23,0.25)' } : undefined}
-        >
+        {/* ── Guardar ─────────────────────────────────────────────────── */}
+        <Button type="submit" className="w-full" disabled={loading || !ctaEnabled}>
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-          ) : (
-            'Guardar gasto'
-          )}
-        </button>
+            <Loader2 data-icon="inline-start" className="animate-spin" />
+          ) : null}
+          Guardar gasto
+        </Button>
       </div>
     </form>
   )

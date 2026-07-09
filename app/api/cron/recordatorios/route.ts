@@ -31,9 +31,16 @@ export async function GET(req: Request) {
   }
 
   const [u1, u2] = getUsers()
+  // Cada usuario solo recibe recordatorios de gastos compartidos o de sus propios personales
+  const paraUsuario = (email: string) =>
+    vencimientosProximos.filter(
+      v => v.gasto.tipo_division !== 'personal' || v.gasto.pagado_por === email
+    )
+  const listaU1 = paraUsuario(u1.email)
+  const listaU2 = paraUsuario(u2.email)
   await Promise.all([
-    enviarEmailRecordatorio(u1, vencimientosProximos),
-    enviarEmailRecordatorio(u2, vencimientosProximos),
+    listaU1.length > 0 ? enviarEmailRecordatorio(u1, listaU1) : Promise.resolve(),
+    listaU2.length > 0 ? enviarEmailRecordatorio(u2, listaU2) : Promise.resolve(),
   ])
 
   return NextResponse.json({ ok: true, enviados: vencimientosProximos.length })

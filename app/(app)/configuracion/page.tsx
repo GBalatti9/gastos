@@ -9,9 +9,9 @@ export default async function ConfiguracionPage() {
   const misTarjetas = tarjetas.filter(t => t.owner_email === session?.user?.email)
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-display italic text-foreground">Ajustes</h1>
+        <h1 className="text-lg font-medium text-foreground">Ajustes</h1>
         <p className="text-xs text-muted-foreground mt-1">
           Configurá tus tarjetas de crédito para trackear cuotas por ciclo de facturación.
         </p>

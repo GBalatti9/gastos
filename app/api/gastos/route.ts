@@ -9,7 +9,12 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const gastos = await getGastos()
-  return NextResponse.json(gastos)
+  // Ocultar gastos personales de otros usuarios
+  const email = session.user?.email || ''
+  const visibles = gastos.filter(
+    (g) => g.tipo_division !== 'personal' || g.pagado_por === email
+  )
+  return NextResponse.json(visibles)
 }
 
 export async function POST(req: NextRequest) {
