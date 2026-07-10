@@ -14,6 +14,7 @@ import {
   ArrowDown,
   Trash2,
   Loader2,
+  Pencil,
 } from 'lucide-react'
 import {
   flexRender,
@@ -136,6 +137,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
   const [rowSelection, setRowSelection] = React.useState({})
   const [deleting, setDeleting] = React.useState(false)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [anioFilter, setAnioFilter] = React.useState(String(new Date().getFullYear()))
   const [mesFilter, setMesFilter] = React.useState('todos')
   const [estadoFilter, setEstadoFilter] = React.useState('activo')
 
@@ -168,20 +170,41 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
     [gastos, pagos, categorias, usuarios, miPartes]
   )
 
-  // Meses disponibles para el filtro (yyyy-MM únicos, más recientes primero)
+  // Años disponibles para el filtro (más recientes primero)
+  const anioOptions = React.useMemo(() => {
+    if (!conFiltros) return []
+    return [...new Set(rows.flatMap((r) => r.meses.map((m) => m.slice(0, 4))))]
+      .sort()
+      .reverse()
+  }, [rows, conFiltros])
+
+  // Meses disponibles (MM únicos) dentro del año seleccionado
   const mesOptions = React.useMemo(() => {
     if (!conFiltros) return []
-    return [...new Set(rows.flatMap((r) => r.meses))].sort().reverse()
-  }, [rows, conFiltros])
+    return [
+      ...new Set(
+        rows
+          .flatMap((r) => r.meses)
+          .filter((m) => anioFilter === 'todos' || m.startsWith(anioFilter))
+          .map((m) => m.slice(5, 7))
+      ),
+    ].sort()
+  }, [rows, conFiltros, anioFilter])
 
   const filteredRows = React.useMemo(() => {
     if (!conFiltros) return rows
-    return rows.filter(
-      (r) =>
-        (mesFilter === 'todos' || r.meses.includes(mesFilter)) &&
-        (estadoFilter === 'todos' || r.estado === estadoFilter)
-    )
-  }, [rows, conFiltros, mesFilter, estadoFilter])
+    return rows.filter((r) => {
+      const matchFecha =
+        anioFilter === 'todos' && mesFilter === 'todos'
+          ? true
+          : r.meses.some(
+              (m) =>
+                (anioFilter === 'todos' || m.startsWith(anioFilter)) &&
+                (mesFilter === 'todos' || m.slice(5, 7) === mesFilter)
+            )
+      return matchFecha && (estadoFilter === 'todos' || r.estado === estadoFilter)
+    })
+  }, [rows, conFiltros, anioFilter, mesFilter, estadoFilter])
 
   const columns = React.useMemo<ColumnDef<GastoRow>[]>(
     () => [
@@ -241,6 +264,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
                 </Badge>
               ),
               enableSorting: false,
+              filterFn: 'equals',
             },
           ] satisfies ColumnDef<GastoRow>[])
         : []),
@@ -308,6 +332,18 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
             },
           ] satisfies ColumnDef<GastoRow>[])
         : []),
+      {
+        id: 'acciones',
+        header: () => <span className="sr-only">Acciones</span>,
+        cell: ({ row }) => (
+          <Link href={`/gastos/${row.original.id}`}>
+            <Button variant="ghost" size="icon-sm" aria-label="Editar gasto">
+              <Pencil />
+            </Button>
+          </Link>
+        ),
+        enableSorting: false,
+      },
     ],
     [mostrarTipo, miPartes]
   )
@@ -332,6 +368,11 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
   const catFilter = (table.getColumn('categoria')?.getFilterValue() as string) ?? 'todas'
   const pagadorFilter =
     (table.getColumn('pagadorNombre')?.getFilterValue() as string) ?? 'todos'
+  const tipoFilterValue = table.getColumn('esPersonal')?.getFilterValue() as
+    | boolean
+    | undefined
+  const tipoFilter =
+    tipoFilterValue === undefined ? 'todos' : tipoFilterValue ? 'personal' : 'compartido'
 
   async function handleEliminar() {
     setDeleting(true)
@@ -364,91 +405,151 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Buscar gasto..."
-          value={(table.getColumn('descripcion')?.getFilterValue() as string) ?? ''}
-          onChange={(e) =>
-            table.getColumn('descripcion')?.setFilterValue(e.target.value)
-          }
-          className="w-full sm:max-w-56"
-        />
-        <Select
-          value={catFilter}
-          onValueChange={(v) =>
-            table
-              .getColumn('categoria')
-              ?.setFilterValue(v === 'todas' ? undefined : v)
-          }
-        >
-          <SelectTrigger size="sm" className="w-40">
-            <SelectValue placeholder="Categoría" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="todas">Todas</SelectItem>
-              {categorias.map((c) => (
-                <SelectItem key={c.id} value={c.nombre}>
-                  {c.icono} {c.nombre}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        {conFiltros && (
-          <>
-            <Select value={mesFilter} onValueChange={(v) => setMesFilter(v ?? 'todos')}>
-              <SelectTrigger size="sm" className="w-40 capitalize">
-                <SelectValue placeholder="Mes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="todos">Todos los meses</SelectItem>
-                  {mesOptions.map((mes) => {
-                    const [y, m] = mes.split('-').map(Number)
-                    return (
-                      <SelectItem key={mes} value={mes} className="capitalize">
-                        {format(new Date(y, m - 1, 1), 'MMMM yyyy', { locale: es })}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
+          <span className="text-xs font-medium text-muted-foreground">Buscar</span>
+          <Input
+            placeholder="Buscar gasto..."
+            value={(table.getColumn('descripcion')?.getFilterValue() as string) ?? ''}
+            onChange={(e) =>
+              table.getColumn('descripcion')?.setFilterValue(e.target.value)
+            }
+            className="w-full sm:max-w-56"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Categoría</span>
+          <Select
+            value={catFilter}
+            onValueChange={(v) =>
+              table
+                .getColumn('categoria')
+                ?.setFilterValue(v === 'todas' ? undefined : v)
+            }
+          >
+            <SelectTrigger size="sm" className="w-40">
+              <SelectValue placeholder="Categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="todas">Todas</SelectItem>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={c.nombre}>
+                    {c.icono} {c.nombre}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        {mostrarTipo && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">Tipo</span>
             <Select
-              value={pagadorFilter}
+              value={tipoFilter}
               onValueChange={(v) =>
                 table
-                  .getColumn('pagadorNombre')
-                  ?.setFilterValue(v === 'todos' ? undefined : v)
+                  .getColumn('esPersonal')
+                  ?.setFilterValue(v === 'todos' ? undefined : v === 'personal')
               }
             >
-              <SelectTrigger size="sm" className="w-32">
-                <SelectValue placeholder="Pagador" />
+              <SelectTrigger size="sm" className="w-36">
+                <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="todos">Todos</SelectItem>
-                  {usuarios.map((u) => (
-                    <SelectItem key={u.email} value={u.nombre}>
-                      {u.nombre}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="personal">Personal</SelectItem>
+                  <SelectItem value="compartido">Compartido</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <Select value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? 'activo')}>
-              <SelectTrigger size="sm" className="w-32">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="activo">Activos</SelectItem>
-                  <SelectItem value="cancelado">Cancelados</SelectItem>
-                  <SelectItem value="todos">Todos</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          </div>
+        )}
+        {conFiltros && (
+          <>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Año</span>
+              <Select
+                value={anioFilter}
+                onValueChange={(v) => {
+                  setAnioFilter(v ?? 'todos')
+                  setMesFilter('todos')
+                }}
+              >
+                <SelectTrigger size="sm" className="w-28">
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {anioOptions.map((anio) => (
+                      <SelectItem key={anio} value={anio}>
+                        {anio}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Mes</span>
+              <Select value={mesFilter} onValueChange={(v) => setMesFilter(v ?? 'todos')}>
+                <SelectTrigger size="sm" className="w-36 capitalize">
+                  <SelectValue placeholder="Mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="todos">Todos los meses</SelectItem>
+                    {mesOptions.map((mes) => (
+                      <SelectItem key={mes} value={mes} className="capitalize">
+                        {format(new Date(2000, Number(mes) - 1, 1), 'MMMM', { locale: es })}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Pagador</span>
+              <Select
+                value={pagadorFilter}
+                onValueChange={(v) =>
+                  table
+                    .getColumn('pagadorNombre')
+                    ?.setFilterValue(v === 'todos' ? undefined : v)
+                }
+              >
+                <SelectTrigger size="sm" className="w-32">
+                  <SelectValue placeholder="Pagador" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {usuarios.map((u) => (
+                      <SelectItem key={u.email} value={u.nombre}>
+                        {u.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Estado</span>
+              <Select value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? 'activo')}>
+                <SelectTrigger size="sm" className="w-32">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="activo">Activos</SelectItem>
+                    <SelectItem value="cancelado">Cancelados</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </>
         )}
         <div className="ml-auto flex items-center gap-2">
