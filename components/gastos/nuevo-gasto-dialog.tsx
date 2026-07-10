@@ -38,7 +38,7 @@ export function NuevoGastoDialog({
   const [data, setData] = React.useState<FormData | null>(null)
 
   React.useEffect(() => {
-    if (!open || data) return
+    if (!open) return
     let cancelled = false
     Promise.all([fetch('/api/categorias'), fetch('/api/tarjetas')])
       .then(async ([resCat, resTar]) => {
@@ -59,10 +59,16 @@ export function NuevoGastoDialog({
     return () => {
       cancelled = true
     }
-  }, [open, data, usuarioEmail])
+  }, [open, usuarioEmail])
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (!o) setData(null) // descartar cache para refetchear al reabrir
+      }}
+    >
       <DialogTrigger render={trigger} />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -76,7 +82,10 @@ export function NuevoGastoDialog({
             usuarioNombre={usuarioNombre}
             otroUsuarioEmail={otroUsuarioEmail}
             otroUsuarioNombre={otroUsuarioNombre}
-            onSuccess={() => setOpen(false)}
+            onSuccess={() => {
+              setOpen(false)
+              setData(null)
+            }}
           />
         ) : (
           <div className="flex h-40 items-center justify-center">
