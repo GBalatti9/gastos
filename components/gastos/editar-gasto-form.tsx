@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Gasto, Categoria, TarjetaCredito } from '@/lib/types'
 import { calcularFechaVencimientoCuota } from '@/lib/billing-cycle'
+import { calcularSplitCuota } from '@/lib/saldo'
+import { parseLocalDate } from '@/lib/dates'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Loader2, ChevronLeft, CreditCard, Plus } from 'lucide-react'
@@ -26,27 +28,6 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calcularSplitCuota(
-  montoCuota: number,
-  tipoDivision: string,
-  divisionValor: string,
-  yoSoyPagador: boolean
-): { yo: number; otro: number } {
-  switch (tipoDivision) {
-    case 'porcentaje': {
-      const pct = (parseFloat(divisionValor) || 50) / 100
-      const yo = yoSoyPagador ? montoCuota * pct : montoCuota * (1 - pct)
-      return { yo, otro: montoCuota - yo }
-    }
-    case 'monto_fijo': {
-      const fijo = parseFloat(divisionValor) || 0
-      if (yoSoyPagador) return { yo: montoCuota - fijo, otro: fijo }
-      return { yo: fijo, otro: montoCuota - fijo }
-    }
-    default:
-      return { yo: montoCuota / 2, otro: montoCuota / 2 }
-  }
-}
 
 function fmt(n: number, moneda: string): string {
   const simbolo = moneda === 'USD' ? 'U$S ' : '$'
@@ -236,7 +217,7 @@ export function EditarGastoForm({
   function getPrimeraVencimientoLabel(): string | null {
     if (!tarjetaSeleccionada || !form.fecha_inicio) return null
     try {
-      const primera = calcularFechaVencimientoCuota(new Date(form.fecha_inicio), 0, tarjetaSeleccionada)
+      const primera = calcularFechaVencimientoCuota(parseLocalDate(form.fecha_inicio), 0, tarjetaSeleccionada)
       return format(primera, "d 'de' MMMM yyyy", { locale: es })
     } catch {
       return null
@@ -502,7 +483,7 @@ export function EditarGastoForm({
 
             {form.tipo_division === 'porcentaje' && (
               <div className="flex items-center gap-3 pt-1">
-                <span className="text-[13px] text-muted-foreground flex-1">% que pagás vos</span>
+                <span className="text-[13px] text-muted-foreground flex-1">% que paga {yoSoyPagador ? usuarioNombre : otroUsuarioNombre}</span>
                 <div className="relative w-24">
                   <input
                     type="number"

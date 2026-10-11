@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis } from 'recharts'
 import {
   Card,
   CardAction,
@@ -61,9 +61,11 @@ interface Props {
   data: ChartPoint[]
   u1Nombre: string
   u2Nombre: string
+  /** Promedio mensual de la pareja (meses completos). Se dibuja como línea de referencia. */
+  promedio?: number
 }
 
-export function ChartGastos({ data, u1Nombre, u2Nombre }: Props) {
+export function ChartGastos({ data, u1Nombre, u2Nombre, promedio }: Props) {
   const [range, setRange] = React.useState('6')
   const [mesSeleccionado, setMesSeleccionado] = React.useState<ChartPoint | null>(null)
 
@@ -84,6 +86,9 @@ export function ChartGastos({ data, u1Nombre, u2Nombre }: Props) {
         <CardTitle>Evolución de gastos</CardTitle>
         <CardDescription>
           Gasto mensual por persona y total. Tocá un mes para ver el detalle.
+          {promedio !== undefined && (
+            <> Línea punteada: promedio {ars(promedio)}.</>
+          )}
         </CardDescription>
         <CardAction>
           <ToggleGroup
@@ -99,7 +104,7 @@ export function ChartGastos({ data, u1Nombre, u2Nombre }: Props) {
         </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full cursor-pointer">
+        <ChartContainer config={chartConfig} className="aspect-auto h-56 w-full cursor-pointer md:h-[320px]">
           <AreaChart
             data={filtered}
             onClick={(state) => {
@@ -169,13 +174,21 @@ export function ChartGastos({ data, u1Nombre, u2Nombre }: Props) {
               stroke="var(--color-u2)"
               strokeWidth={2}
             />
+            {promedio !== undefined && (
+              <ReferenceLine
+                y={promedio}
+                stroke="var(--muted-foreground)"
+                strokeDasharray="4 4"
+                ifOverflow="extendDomain"
+              />
+            )}
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
       </CardContent>
 
       <Dialog open={mesSeleccionado !== null} onOpenChange={(open) => !open && setMesSeleccionado(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="capitalize">
               {mesSeleccionado?.mesLabel} · {ars((mesSeleccionado?.u1 ?? 0) + (mesSeleccionado?.u2 ?? 0))}
@@ -185,8 +198,8 @@ export function ChartGastos({ data, u1Nombre, u2Nombre }: Props) {
             mesSeleccionado.pagos.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Sin datos</p>
             ) : (
-              <div className="max-h-80 overflow-y-auto">
-                <Table>
+              <div className="max-h-80 overflow-auto">
+                <Table className="min-w-[520px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Descripción</TableHead>

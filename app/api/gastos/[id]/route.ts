@@ -59,8 +59,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       tarjeta = await getTarjetaById(body.tarjeta_id)
     }
 
-    const nuevoCuotas = gasto.cuotas
-    const nuevaMontoCuota = montoNuevo / nuevoCuotas
+    // Las cuotas ya pagadas no se tocan: lo que falta del nuevo total se
+    // reparte entre las pendientes, así la suma de cuotas sigue dando el total.
+    const sumPagadas = pagos
+      .filter(p => p.estado === 'pagado')
+      .reduce((s, p) => s + p.monto, 0)
+    const nPendientes = pagos.filter(p => p.estado === 'pendiente').length
+    const nuevaMontoCuota = nPendientes > 0
+      ? Math.max(0, montoNuevo - sumPagadas) / nPendientes
+      : 0
     const fechaInicioStr = body.fecha_inicio ?? gasto.fecha_inicio
     const [anio, mes, dia] = fechaInicioStr.split('-').map(Number)
     const fechaCompra = new Date(anio, mes - 1, dia)

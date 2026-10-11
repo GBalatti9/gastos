@@ -20,7 +20,7 @@ export async function enviarEmailNuevoGasto(
   primerPago: Pago | undefined
 ) {
   const html = await render(
-    NuevoGastoEmail({ destinatario, autor, gasto, primerPago }) as any
+    NuevoGastoEmail({ destinatario, autor, gasto, primerPago })
   )
   await getResend().emails.send({
     from: FROM,
@@ -37,7 +37,7 @@ export async function enviarEmailCuotaPagada(
   pago: Pago
 ) {
   const html = await render(
-    CuotaPagadaEmail({ destinatario, autor, gasto, pago }) as any
+    CuotaPagadaEmail({ destinatario, autor, gasto, pago })
   )
   await getResend().emails.send({
     from: FROM,
@@ -53,7 +53,7 @@ export async function enviarEmailGastoCancelado(
   gasto: Gasto
 ) {
   const html = await render(
-    GastoCanceladoEmail({ destinatario, autor, gasto }) as any
+    GastoCanceladoEmail({ destinatario, autor, gasto })
   )
   await getResend().emails.send({
     from: FROM,
@@ -68,7 +68,7 @@ export async function enviarEmailRecordatorio(
   vencimientos: ProximoVencimiento[]
 ) {
   const html = await render(
-    RecordatorioEmail({ destinatario, vencimientos }) as any
+    RecordatorioEmail({ destinatario, vencimientos })
   )
   await getResend().emails.send({
     from: FROM,

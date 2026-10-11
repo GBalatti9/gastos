@@ -7,7 +7,6 @@ import {
   Card,
   CardAction,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -25,12 +24,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { PromedioCard, FilaMes } from '@/components/dashboard/promedio-card'
 import type { Gasto, Pago } from '@/lib/types'
 
 export interface PagoDetalle {
   pago: Pago
   gasto: Gasto
   miParte: number
+}
+
+export interface PromedioPersonal {
+  total: number
+  casa: number
+  personal: number
+  meses: string[]
+  filas: FilaMes[]
 }
 
 interface Props {
@@ -44,6 +52,7 @@ interface Props {
   detalleCostoReal: PagoDetalle[]
   detalleCashFlow: PagoDetalle[]
   detalleComprometido: PagoDetalle[]
+  promedio: PromedioPersonal
 }
 
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}`
@@ -52,11 +61,11 @@ type DialogKey = 'costo' | 'cash' | 'comprometido' | null
 
 function DetalleTable({ detalle }: { detalle: PagoDetalle[] }) {
   if (detalle.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">Sin datos</p>
+    return <p className="py-4 text-center text-sm text-muted-foreground">Sin datos</p>
   }
   return (
-    <div className="max-h-80 overflow-y-auto">
-      <Table>
+    <div className="max-h-80 overflow-auto">
+      <Table className="min-w-[520px]">
         <TableHeader>
           <TableRow>
             <TableHead>Descripción</TableHead>
@@ -103,6 +112,7 @@ export function FinanzasCards({
   detalleCostoReal,
   detalleCashFlow,
   detalleComprometido,
+  promedio,
 }: Props) {
   const [openDialog, setOpenDialog] = useState<DialogKey>(null)
 
@@ -112,28 +122,50 @@ export function FinanzasCards({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+      <div className="grid grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
         {/* Costo real del mes */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('costo')}>
+        <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('costo')}>
           <CardHeader>
             <CardDescription>Costo real del mes</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl col-span-2">
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {ars(costoReal)}
             </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="hidden @[250px]/card:inline-flex">
+                casa {ars(costoCasa)} · pers. {ars(costoPersonal)}
+              </Badge>
+            </CardAction>
           </CardHeader>
         </Card>
 
+        {/* Promedio mensual (mi parte) */}
+        <PromedioCard
+          titulo="Tu promedio mensual"
+          monto={promedio.total}
+          meses={promedio.meses}
+          columnas={['Total', 'Casa', 'Personal']}
+          filas={promedio.filas}
+          descripcion="Tu parte de los gastos compartidos más tus gastos personales, sobre meses completos. Cada cuota cuenta en el mes de su vencimiento. Las liquidaciones de deuda no cuentan."
+          detalle={
+            promedio.meses.length > 0 ? (
+              <span className="truncate">
+                casa {ars(promedio.casa)} · personal {ars(promedio.personal)}
+              </span>
+            ) : undefined
+          }
+        />
+
         {/* Cash flow del mes */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('cash')}>
+        <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('cash')}>
           <CardHeader>
             <CardDescription>Cash flow del mes</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl col-span-2">
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {ars(cashFlow)}
             </CardTitle>
             <CardAction>
               <Badge variant="outline">
                 {cashUp ? <TrendingUp /> : <TrendingDown />}
-                {cashUp ? '+' : ''}{cashDiff.toFixed(1)}%
+                {cashUp ? '+' : ''}{cashDiff.toFixed(0)}%
               </Badge>
             </CardAction>
           </CardHeader>
@@ -143,23 +175,23 @@ export function FinanzasCards({
         <Card className="@container/card">
           <CardHeader>
             <CardDescription>Diferencia</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl col-span-2">
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {diferencia >= 0 ? '+' : '−'}{ars(Math.abs(diferencia))}
             </CardTitle>
             <CardAction>
               <Badge variant="outline">
                 <Scale />
-                Cash − Costo
+                <span className="hidden @[250px]/card:inline">Cash − Costo</span>
               </Badge>
             </CardAction>
           </CardHeader>
         </Card>
 
         {/* Comprometido (mi parte) */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('comprometido')}>
+        <Card className="@container/card col-span-2 cursor-pointer transition-colors hover:border-primary/30 @5xl/main:col-span-4" onClick={() => setOpenDialog('comprometido')}>
           <CardHeader>
-            <CardDescription>Comprometido</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl col-span-2">
+            <CardDescription>Comprometido (mi parte de las cuotas pendientes)</CardDescription>
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {comprometidoMonto < 1 ? 'Sin cuotas' : ars(comprometidoMonto)}
             </CardTitle>
             <CardAction>
@@ -174,7 +206,7 @@ export function FinanzasCards({
 
       {/* Dialogs */}
       <Dialog open={openDialog === 'costo'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Costo real del mes</DialogTitle>
           </DialogHeader>
@@ -183,7 +215,7 @@ export function FinanzasCards({
       </Dialog>
 
       <Dialog open={openDialog === 'cash'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Cash flow del mes</DialogTitle>
           </DialogHeader>
@@ -192,7 +224,7 @@ export function FinanzasCards({
       </Dialog>
 
       <Dialog open={openDialog === 'comprometido'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Comprometido (mi parte)</DialogTitle>
           </DialogHeader>

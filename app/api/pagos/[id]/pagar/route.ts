@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getPagos, getGastos, marcarPagoComoPagado, getTipoCambioByFecha, saveTipoCambio } from '@/lib/google-sheets'
 import { fetchTipoCambioActual } from '@/lib/tipo-cambio'
-import { format } from 'date-fns'
+import { hoyAR } from '@/lib/dates'
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
-  const userEmail = session.user?.email!
-  const fechaPago = format(new Date(), 'yyyy-MM-dd')
+  const userEmail = session.user?.email ?? ''
+  // Fecha en Argentina: el server corre en UTC y a la noche ya es "mañana"
+  const fechaPago = hoyAR()
 
   // Si el gasto es en USD, guardar el TC del día automáticamente
   const [pagos, gastos] = await Promise.all([getPagos(), getGastos()])

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getGastoById, getPagosByGastoId, getPagos } from '@/lib/google-sheets'
+import { getPagosByGastoId } from '@/lib/google-sheets'
 import {
   enviarEmailNuevoGasto,
   enviarEmailCuotaPagada,

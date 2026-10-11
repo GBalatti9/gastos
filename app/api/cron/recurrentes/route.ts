@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getGastos, getPagos, createPagos, getTarjetaById } from '@/lib/google-sheets'
-import { addMonths, setDate, getDaysInMonth, format, startOfMonth, endOfMonth } from 'date-fns'
+import { getDaysInMonth } from 'date-fns'
+import { hoyAR, mesSiguiente, primerDiaDelMes } from '@/lib/dates'
 
+/**
+ * Genera las cuotas de los gastos recurrentes.
+ *
+ * Es idempotente y cubre el mes actual Y el siguiente, así puede correr todos
+ * los días: un recurrente creado el 28 no se queda sin cuota el mes que viene
+ * (antes solo se generaba "el próximo mes" el día 25).
+ */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -9,47 +17,43 @@ export async function GET(req: Request) {
   }
 
   const [gastos, pagos] = await Promise.all([getGastos(), getPagos()])
-  const hoy = new Date()
-  const proximoMes = addMonths(hoy, 1)
-  const inicioProximo = startOfMonth(proximoMes)
-  const finProximo = endOfMonth(proximoMes)
+  const mesActual = hoyAR().slice(0, 7)
+  const targets = [mesActual, mesSiguiente(mesActual)]
 
   const gastosRecurrentes = gastos.filter(g => g.recurrente && g.estado === 'activo')
   const pagosCreados: string[] = []
 
   for (const gasto of gastosRecurrentes) {
-    let diaVenc: number
+    const mesInicio = gasto.fecha_inicio.slice(0, 7)
+    const pagosGasto = pagos.filter(p => p.gasto_id === gasto.id)
+
+    let diaVenc = parseInt(gasto.fecha_inicio.slice(8, 10)) || 1
     if (gasto.metodo_pago === 'credito' && gasto.tarjeta_id) {
       const tarjeta = await getTarjetaById(gasto.tarjeta_id)
-      diaVenc = tarjeta?.fecha_vencimiento ?? new Date(gasto.fecha_inicio).getDate()
-    } else {
-      diaVenc = new Date(gasto.fecha_inicio).getDate()
+      if (tarjeta) diaVenc = tarjeta.fecha_vencimiento
     }
-    const diaMax = getDaysInMonth(proximoMes)
-    const fechaVenc = setDate(proximoMes, Math.min(diaVenc, diaMax))
 
-    // Verificar que no exista ya un pago para el próximo mes
-    const yaExiste = pagos.some(p => {
-      if (p.gasto_id !== gasto.id) return false
-      const fv = new Date(p.fecha_vencimiento)
-      return fv >= inicioProximo && fv <= finProximo
-    })
+    let creados = 0
+    for (const target of targets) {
+      // El mes de inicio ya tiene su cuota (creada al cargar el gasto)
+      if (target <= mesInicio) continue
+      if (pagosGasto.some(p => p.fecha_vencimiento.startsWith(target))) continue
 
-    if (yaExiste) continue
+      const diaMax = getDaysInMonth(primerDiaDelMes(target))
+      const dia = String(Math.min(diaVenc, diaMax)).padStart(2, '0')
 
-    const numeroCuotaActual = pagos.filter(p => p.gasto_id === gasto.id).length + 1
-
-    await createPagos([{
-      gasto_id: gasto.id,
-      numero_cuota: numeroCuotaActual,
-      monto: gasto.monto_total,
-      fecha_vencimiento: format(fechaVenc, 'yyyy-MM-dd'),
-      fecha_pago: null,
-      pagado_por: null,
-      estado: 'pendiente',
-    }])
-
-    pagosCreados.push(gasto.descripcion)
+      await createPagos([{
+        gasto_id: gasto.id,
+        numero_cuota: pagosGasto.length + creados + 1,
+        monto: gasto.monto_total,
+        fecha_vencimiento: `${target}-${dia}`,
+        fecha_pago: null,
+        pagado_por: null,
+        estado: 'pendiente',
+      }])
+      creados++
+      pagosCreados.push(`${gasto.descripcion} (${target})`)
+    }
   }
 
   return NextResponse.json({ ok: true, generados: pagosCreados })

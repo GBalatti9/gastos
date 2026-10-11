@@ -49,29 +49,10 @@ export interface SaldoData {
   moneda: Moneda
 }
 
-export interface Cierre {
-  id: string
-  mes: string // formato: 2026-04
-  saldo_user1: number
-  saldo_user2: number
-  deuda_final: number
-  deudor: string // email
-  acreedor: string // email
-  fecha_cierre: string // ISO date
-  moneda: Moneda
-}
-
 export interface ProximoVencimiento {
   pago: Pago
   gasto: Gasto
   dias_restantes: number
-}
-
-export interface ResumenMes {
-  total: number
-  por_categoria: { categoria: string; total: number; color: string }[]
-  user1_pago: number
-  user2_pago: number
 }
 
 export interface GastoConPagos extends Gasto {

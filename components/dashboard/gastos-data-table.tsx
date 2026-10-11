@@ -76,6 +76,8 @@ interface Props {
   miPartes?: Record<string, number>
   /** Agrega filtros de mes, pagador y estado en la toolbar (usado en /gastos). */
   conFiltros?: boolean
+  /** IDs de gastos que son liquidaciones de deuda (se marcan con badge). */
+  liquidaciones?: string[]
 }
 
 interface GastoRow {
@@ -88,6 +90,7 @@ interface GastoRow {
   cuotasTotal: number
   esCuotas: boolean
   esPersonal: boolean
+  esLiquidacion: boolean
   monto: number
   miParte: number
   simbolo: string
@@ -128,7 +131,7 @@ function SortHeader({
   )
 }
 
-export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTipo, miPartes, conFiltros }: Props) {
+export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTipo, miPartes, conFiltros, liquidaciones }: Props) {
   const router = useRouter()
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'vencimiento', desc: true },
@@ -157,6 +160,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
           cuotasTotal: gastoPagos.length || gasto.cuotas,
           esCuotas: gasto.cuotas > 1,
           esPersonal: gasto.tipo_division === 'personal',
+          esLiquidacion: liquidaciones?.includes(gasto.id) ?? false,
           monto: gasto.monto_total,
           miParte: miPartes?.[gasto.id] ?? 0,
           simbolo: gasto.moneda === 'USD' ? 'U$S' : '$',
@@ -167,7 +171,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
           meses: [...new Set(gastoPagos.map((p) => p.fecha_vencimiento.slice(0, 7)))],
         }
       }),
-    [gastos, pagos, categorias, usuarios, miPartes]
+    [gastos, pagos, categorias, usuarios, miPartes, liquidaciones]
   )
 
   // Años disponibles para el filtro (más recientes primero)
@@ -239,6 +243,9 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
             <span className="truncate">{row.original.descripcion}</span>
             {row.original.estado === 'cancelado' && (
               <Badge variant="destructive" className="ml-1">Cancelado</Badge>
+            )}
+            {row.original.esLiquidacion && (
+              <Badge variant="secondary" className="ml-1">Liquidación</Badge>
             )}
           </Link>
         ),

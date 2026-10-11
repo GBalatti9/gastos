@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { Gasto, Pago, Categoria, Cierre, Moneda, TipoDivision, TipoCambio, MetodoPago, TarjetaCredito } from './types'
+import { Gasto, Pago, Categoria, Moneda, TipoDivision, TipoCambio, MetodoPago, TarjetaCredito } from './types'
 
 function getAuth() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n')
@@ -225,44 +225,6 @@ export async function marcarPagoComoPagado(
   })
 }
 
-// ─── Cierres ──────────────────────────────────────────────────────────────────
-
-export async function getCierres(): Promise<Cierre[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'cierres!A2:I',
-  })
-  const rows = res.data.values || []
-  return rows.map(rowToCierre).filter(Boolean) as Cierre[]
-}
-
-export async function createCierre(data: Omit<Cierre, 'id'>): Promise<Cierre> {
-  const sheets = getSheets()
-  const nextId = Date.now().toString()
-
-  const row = [
-    nextId,
-    data.mes,
-    data.saldo_user1,
-    data.saldo_user2,
-    data.deuda_final,
-    data.deudor,
-    data.acreedor,
-    data.fecha_cierre,
-    data.moneda,
-  ]
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'cierres!A:I',
-    valueInputOption: 'RAW',
-    requestBody: { values: [row] },
-  })
-
-  return { ...data, id: nextId }
-}
-
 // ─── Categorias ───────────────────────────────────────────────────────────────
 
 export async function getCategorias(): Promise<Categoria[]> {
@@ -471,21 +433,6 @@ function rowToGasto(row: string[]): Gasto | null {
     recurrente: row[13] === 'si',
     metodo_pago: (row[14] as MetodoPago) || 'efectivo',
     tarjeta_id: row[15] || '',
-  }
-}
-
-function rowToCierre(row: string[]): Cierre | null {
-  if (!row[0]) return null
-  return {
-    id: row[0],
-    mes: row[1] || '',
-    saldo_user1: parseFloat(row[2]) || 0,
-    saldo_user2: parseFloat(row[3]) || 0,
-    deuda_final: parseFloat(row[4]) || 0,
-    deudor: row[5] || '',
-    acreedor: row[6] || '',
-    fecha_cierre: row[7] || '',
-    moneda: (row[8] as Moneda) || 'ARS',
   }
 }
 

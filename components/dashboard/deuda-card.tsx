@@ -71,7 +71,7 @@ export function DeudaCard({ saldoARS, saldoUSD, usuarioEmail }: Props) {
               <DialogHeader>
                 <DialogTitle>Detalle del saldo</DialogTitle>
                 <DialogDescription>
-                  Neto acumulado de todas las cuotas vencidas hasta hoy
+                  Neto acumulado de todas las cuotas que vencen hasta fin de este mes
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">

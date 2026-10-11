@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { parseLocalDate } from '@/lib/dates'
 import { Gasto, Pago, Categoria, TarjetaCredito } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -257,7 +258,7 @@ export function GastoDetalle({
             <div>
               <p className="text-xs text-muted-foreground">Fecha inicio</p>
               <p className="font-medium">
-                {format(new Date(gasto.fecha_inicio), "d MMM yyyy", { locale: es })}
+                {format(parseLocalDate(gasto.fecha_inicio), "d MMM yyyy", { locale: es })}
               </p>
             </div>
             <div>
@@ -307,7 +308,7 @@ export function GastoDetalle({
                         Cuota {pago.numero_cuota}/{gasto.cuotas}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Vence: {format(new Date(pago.fecha_vencimiento), "d MMM yyyy", { locale: es })}
+                        Vence: {format(parseLocalDate(pago.fecha_vencimiento), "d MMM yyyy", { locale: es })}
                       </p>
                     </div>
                   </div>
@@ -366,7 +367,7 @@ export function GastoDetalle({
                       <p className="text-xs text-muted-foreground">
                         Pagado{' '}
                         {pago.fecha_pago
-                          ? format(new Date(pago.fecha_pago), "d MMM yyyy", { locale: es })
+                          ? format(parseLocalDate(pago.fecha_pago), "d MMM yyyy", { locale: es })
                           : ''}
                       </p>
                     </div>
