@@ -111,7 +111,7 @@ export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc,
             <Input
               id="cobro-monto"
               inputMode="decimal"
-              placeholder="3.500.000"
+              placeholder="0"
               autoFocus
               value={monto}
               onChange={(e) => setMonto(e.target.value)}

@@ -8,7 +8,7 @@
  * Cedears (unidades), Invertido (USD), Objetivo (peso %). Las demás se ignoran.
  * Los números pueden venir en formato es-AR ("1.896,75").
  *
- * - Si el usuario no tiene meta, crea una (editable después).
+ * - Requiere una meta ya creada en la app (se usa la primera, o --meta=<id>).
  * - Crea una posición CEDEAR por fila (si no existe ya ese ticker en la meta).
  * - Crea un aporte "saldo inicial" por fila con el USD invertido y las unidades,
  *   fechado antes del inicio de la meta para que no cuente como aporte del mes.
@@ -58,13 +58,7 @@ async function main() {
   const metas = await gs.getInvMetas(email)
   let meta = opt('meta') ? metas.find(m => m.id === opt('meta')) : metas[0]
   if (!meta) {
-    meta = {
-      id: Date.now().toString(), email, nombre: 'Meta US$ 50.000',
-      monto_objetivo_usd: 50000, fecha_objetivo: '2029-04', aporte_base_usd: 500, ingreso_base_ars: 3_500_000,
-      pct_extra: 100, fecha_inicio: mesActual, desriesgo_etapas: [30, 60, 90],
-    }
-    await gs.upsertInvMeta(meta)
-    console.log(`\nMeta creada: "${meta.nombre}" (US$ 50.000 para abril 2029, base US$ 500, empieza ${mesActual}). Editala desde la app si querés otros valores.`)
+    throw new Error('No hay ninguna meta. Creala primero desde la app (/inversion → Configurar mi meta) y volvé a correr el import.')
   } else {
     console.log(`\nUsando la meta "${meta.nombre}" (${meta.id})`)
   }

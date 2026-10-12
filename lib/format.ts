@@ -9,7 +9,7 @@ export const fmtARS = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}
 
 export const fmtPct = (n: number, decimales = 0) => `${n.toFixed(decimales)} %`
 
-/** `2029-04` → "abril 2029" */
+/** `2030-06` → "junio 2030" */
 export const fmtMes = (mes: string, patron = 'MMMM yyyy') =>
   mes ? format(primerDiaDelMes(mes), patron, { locale: es }) : ''
 

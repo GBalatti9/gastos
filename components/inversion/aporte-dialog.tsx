@@ -117,7 +117,7 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
             <Input
               id="aporte-monto"
               inputMode="decimal"
-              placeholder={moneda === 'USD' ? '500' : '700.000'}
+              placeholder="0"
               autoFocus
               value={monto}
               onChange={(e) => setMonto(e.target.value)}

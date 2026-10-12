@@ -105,7 +105,7 @@ export function MetaDialog({ open, onOpenChange, meta, puedeBorrar, onGuardada }
           <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel htmlFor="meta-objetivo">Objetivo (USD)</FieldLabel>
-              <Input id="meta-objetivo" inputMode="decimal" placeholder="50000" value={form.monto_objetivo_usd} onChange={(e) => set('monto_objetivo_usd', e.target.value)} className={input} />
+              <Input id="meta-objetivo" inputMode="decimal" placeholder="0" value={form.monto_objetivo_usd} onChange={(e) => set('monto_objetivo_usd', e.target.value)} className={input} />
             </Field>
             <Field>
               <FieldLabel htmlFor="meta-fecha">Fecha objetivo</FieldLabel>
@@ -115,7 +115,7 @@ export function MetaDialog({ open, onOpenChange, meta, puedeBorrar, onGuardada }
           <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel htmlFor="meta-base">Aporte base (USD/mes)</FieldLabel>
-              <Input id="meta-base" inputMode="decimal" placeholder="500" value={form.aporte_base_usd} onChange={(e) => set('aporte_base_usd', e.target.value)} className={input} />
+              <Input id="meta-base" inputMode="decimal" placeholder="0" value={form.aporte_base_usd} onChange={(e) => set('aporte_base_usd', e.target.value)} className={input} />
             </Field>
             <Field>
               <FieldLabel htmlFor="meta-pct">% del extra a invertir</FieldLabel>
@@ -124,7 +124,7 @@ export function MetaDialog({ open, onOpenChange, meta, puedeBorrar, onGuardada }
           </div>
           <Field>
             <FieldLabel htmlFor="meta-ingreso">Ingreso base (ARS/mes)</FieldLabel>
-            <Input id="meta-ingreso" inputMode="decimal" placeholder="3500000" value={form.ingreso_base_ars} onChange={(e) => set('ingreso_base_ars', e.target.value)} className={input} />
+            <Input id="meta-ingreso" inputMode="decimal" placeholder="0" value={form.ingreso_base_ars} onChange={(e) => set('ingreso_base_ars', e.target.value)} className={input} />
             <FieldDescription>Lo que cobres por encima de esto cuenta como extra. Si tenés varias metas, repartí el % entre ellas.</FieldDescription>
           </Field>
           <div className="grid grid-cols-2 gap-3">
