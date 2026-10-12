@@ -140,6 +140,15 @@ VAPID_SUBJECT=mailto:vos@gmail.com
 
 Sin las claves VAPID la app funciona igual: los recordatorios de carga caen a email.
 
+**Desarrollo local vs producción:** si tu `.env` tiene `NEXTAUTH_URL`/`AUTH_URL` apuntando al dominio de Vercel, el login con Google te va a mandar a producción. Creá un `.env.development` (Next lo carga encima de `.env` solo con `next dev`) con:
+
+```env
+AUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3000
+```
+
+y asegurate de que `http://localhost:3000/api/auth/callback/google` esté en las redirect URIs del cliente OAuth.
+
 **Importante con `GOOGLE_PRIVATE_KEY`:** La clave tiene saltos de línea. Cuando la copies del JSON, los `\n` deben quedar como `\n` literales dentro de las comillas dobles, NO como saltos de línea reales.
 
 ---
