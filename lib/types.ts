@@ -93,3 +93,60 @@ export interface NotificacionPayload {
   autor_email: string
   autor_nombre: string
 }
+
+// ─── Inversión con objetivo ───────────────────────────────────────────────────
+
+export type InvTipoCobro = 'base' | 'extra'
+export type InvRol = 'core' | 'satelite' | 'seguro'
+
+export interface InvMeta {
+  email: string
+  monto_objetivo_usd: number
+  fecha_objetivo: string // YYYY-MM
+  aporte_base_usd: number
+  ingreso_base_ars: number
+  pct_extra: number // 0-100
+  fecha_inicio: string // YYYY-MM
+  /** % de la cartera que debe estar en el balde "seguro" a 24, 12 y 6 meses de la fecha objetivo. */
+  desriesgo_etapas: [number, number, number]
+}
+
+export interface InvCobro {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  monto_ars: number
+  tipo: InvTipoCobro
+  tipo_cambio: number
+  notas: string
+}
+
+export interface InvAporte {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  monto_usd: number
+  monto_ars: number
+  tipo_cambio: number
+  posicion_id: string
+  cobro_id: string
+  notas: string
+}
+
+export interface InvPosicion {
+  id: string
+  email: string
+  ticker: string
+  nombre: string
+  peso_objetivo: number // 0-100
+  rol: InvRol
+  activo: boolean
+}
+
+export interface InvValuacion {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  posicion_id: string
+  valor_usd: number
+}

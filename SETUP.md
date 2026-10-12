@@ -72,6 +72,16 @@ fecha | valor | fuente
 email | endpoint | p256dh | auth | user_agent | created_at
 ```
 
+**Módulo de inversión** — 5 hojas, todas con `email` (cada usuario ve solo lo suyo):
+```
+inv_metas:       email | monto_objetivo_usd | fecha_objetivo | aporte_base_usd | ingreso_base_ars | pct_extra | fecha_inicio | desriesgo_etapas
+inv_cobros:      id | email | fecha | monto_ars | tipo | tipo_cambio | notas
+inv_aportes:     id | email | fecha | monto_usd | monto_ars | tipo_cambio | posicion_id | cobro_id | notas
+inv_posiciones:  id | email | ticker | nombre | peso_objetivo | rol | activo
+inv_valuaciones: id | email | fecha | posicion_id | valor_usd
+```
+> `fecha_objetivo` y `fecha_inicio` son `YYYY-MM`. `desriesgo_etapas` es "30,60,90": % de la cartera en el balde seguro a 24, 12 y 6 meses de la fecha objetivo. Los aportes se guardan siempre en USD con el tipo de cambio (CCL) del día.
+
 > **Tip:** La primera vez que cargues `/api/categorias`, la app crea automáticamente las categorías por defecto si la hoja está vacía.
 
 ---

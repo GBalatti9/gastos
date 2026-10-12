@@ -6,3 +6,23 @@ export async function fetchTipoCambioActual(): Promise<number> {
   const data = await res.json()
   return data.venta as number
 }
+
+import { getTipoCambioByFecha, saveTipoCambio } from './google-sheets'
+import { hoyAR } from './dates'
+
+/**
+ * Tipo de cambio (CCL) de hoy: el guardado en la hoja `tipo_cambio` o, si no
+ * hay, el de dolarapi (y lo guarda). Devuelve 0 si nada funciona.
+ */
+export async function getTipoCambioHoy(): Promise<number> {
+  const hoy = hoyAR()
+  const guardado = await getTipoCambioByFecha(hoy)
+  if (guardado) return guardado.valor
+  try {
+    const valor = await fetchTipoCambioActual()
+    await saveTipoCambio(hoy, valor, 'bna')
+    return valor
+  } catch {
+    return 0
+  }
+}

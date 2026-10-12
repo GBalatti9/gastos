@@ -531,3 +531,153 @@ function rowToPago(row: string[]): Pago | null {
     estado: (row[7] as 'pendiente' | 'pagado') || 'pendiente',
   }
 }
+
+// ─── Inversión con objetivo ───────────────────────────────────────────────────
+// Hojas: inv_metas, inv_cobros, inv_aportes, inv_posiciones, inv_valuaciones.
+// Todas tienen `email`; las lecturas filtran por el usuario.
+
+import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion, InvRol, InvTipoCobro } from './types'
+
+async function leerFilas(range: string): Promise<string[][]> {
+  const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range })
+  return (res.data.values || []) as string[][]
+}
+
+async function agregarFilas(range: string, rows: (string | number)[][]): Promise<void> {
+  if (rows.length === 0) return
+  await getSheets().spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows },
+  })
+}
+
+/** Reemplaza la fila cuya columna A vale `key` (o la borra si `row` es null). */
+async function escribirFilaPorClave(hoja: string, ultimaCol: string, key: string, row: (string | number)[] | null): Promise<boolean> {
+  const rows = await leerFilas(`${hoja}!A:A`)
+  const rowIndex = rows.findIndex(r => r[0] === key)
+  if (rowIndex === -1) return false
+  const ancho = ultimaCol.charCodeAt(0) - 'A'.charCodeAt(0) + 1
+  await getSheets().spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${hoja}!A${rowIndex + 1}:${ultimaCol}${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [row ?? Array(ancho).fill('')] },
+  })
+  return true
+}
+
+// inv_metas: email | monto_objetivo_usd | fecha_objetivo | aporte_base_usd | ingreso_base_ars | pct_extra | fecha_inicio | desriesgo_etapas
+function rowToInvMeta(r: string[]): InvMeta {
+  const etapas = (r[7] || '30,60,90').split(',').map(n => parseFloat(n) || 0)
+  return {
+    email: r[0],
+    monto_objetivo_usd: parseFloat(r[1]) || 0,
+    fecha_objetivo: r[2] || '',
+    aporte_base_usd: parseFloat(r[3]) || 0,
+    ingreso_base_ars: parseFloat(r[4]) || 0,
+    pct_extra: parseFloat(r[5]) || 0,
+    fecha_inicio: r[6] || '',
+    desriesgo_etapas: [etapas[0] ?? 30, etapas[1] ?? 60, etapas[2] ?? 90],
+  }
+}
+
+export async function getInvMeta(email: string): Promise<InvMeta | null> {
+  const rows = await leerFilas('inv_metas!A2:H')
+  const r = rows.find(r => r[0] === email)
+  return r ? rowToInvMeta(r) : null
+}
+
+export async function upsertInvMeta(meta: InvMeta): Promise<void> {
+  const row = [
+    meta.email, meta.monto_objetivo_usd, meta.fecha_objetivo, meta.aporte_base_usd,
+    meta.ingreso_base_ars, meta.pct_extra, meta.fecha_inicio, meta.desriesgo_etapas.join(','),
+  ]
+  const existia = await escribirFilaPorClave('inv_metas', 'H', meta.email, row)
+  if (!existia) await agregarFilas('inv_metas!A:H', [row])
+}
+
+// inv_cobros: id | email | fecha | monto_ars | tipo | tipo_cambio | notas
+export async function getInvCobros(email: string): Promise<InvCobro[]> {
+  const rows = await leerFilas('inv_cobros!A2:G')
+  return rows
+    .filter(r => r[0] && r[1] === email)
+    .map(r => ({
+      id: r[0], email: r[1], fecha: r[2] || '', monto_ars: parseFloat(r[3]) || 0,
+      tipo: (r[4] as InvTipoCobro) || 'base', tipo_cambio: parseFloat(r[5]) || 0, notas: r[6] || '',
+    }))
+}
+
+export async function createInvCobro(data: Omit<InvCobro, 'id'>): Promise<InvCobro> {
+  const id = Date.now().toString()
+  await agregarFilas('inv_cobros!A:G', [[id, data.email, data.fecha, data.monto_ars, data.tipo, data.tipo_cambio, data.notas]])
+  return { ...data, id }
+}
+
+export async function deleteInvCobro(id: string): Promise<void> {
+  await escribirFilaPorClave('inv_cobros', 'G', id, null)
+}
+
+// inv_aportes: id | email | fecha | monto_usd | monto_ars | tipo_cambio | posicion_id | cobro_id | notas
+export async function getInvAportes(email: string): Promise<InvAporte[]> {
+  const rows = await leerFilas('inv_aportes!A2:I')
+  return rows
+    .filter(r => r[0] && r[1] === email)
+    .map(r => ({
+      id: r[0], email: r[1], fecha: r[2] || '', monto_usd: parseFloat(r[3]) || 0, monto_ars: parseFloat(r[4]) || 0,
+      tipo_cambio: parseFloat(r[5]) || 0, posicion_id: r[6] || '', cobro_id: r[7] || '', notas: r[8] || '',
+    }))
+}
+
+export async function createInvAporte(data: Omit<InvAporte, 'id'>): Promise<InvAporte> {
+  const id = Date.now().toString()
+  await agregarFilas('inv_aportes!A:I', [[
+    id, data.email, data.fecha, data.monto_usd, data.monto_ars, data.tipo_cambio, data.posicion_id, data.cobro_id, data.notas,
+  ]])
+  return { ...data, id }
+}
+
+export async function deleteInvAporte(id: string): Promise<void> {
+  await escribirFilaPorClave('inv_aportes', 'I', id, null)
+}
+
+// inv_posiciones: id | email | ticker | nombre | peso_objetivo | rol | activo
+export async function getInvPosiciones(email: string): Promise<InvPosicion[]> {
+  const rows = await leerFilas('inv_posiciones!A2:G')
+  return rows
+    .filter(r => r[0] && r[1] === email)
+    .map(r => ({
+      id: r[0], email: r[1], ticker: r[2] || '', nombre: r[3] || '', peso_objetivo: parseFloat(r[4]) || 0,
+      rol: (r[5] as InvRol) || 'core', activo: (r[6] || 'si') !== 'no',
+    }))
+}
+
+export async function createInvPosiciones(datos: Omit<InvPosicion, 'id'>[]): Promise<InvPosicion[]> {
+  let next = Date.now()
+  const creadas = datos.map(d => ({ ...d, id: String(next++) }))
+  await agregarFilas('inv_posiciones!A:G', creadas.map(p => [
+    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no',
+  ]))
+  return creadas
+}
+
+export async function updateInvPosicion(p: InvPosicion): Promise<void> {
+  await escribirFilaPorClave('inv_posiciones', 'G', p.id, [
+    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no',
+  ])
+}
+
+// inv_valuaciones: id | email | fecha | posicion_id | valor_usd
+export async function getInvValuaciones(email: string): Promise<InvValuacion[]> {
+  const rows = await leerFilas('inv_valuaciones!A2:E')
+  return rows
+    .filter(r => r[0] && r[1] === email)
+    .map(r => ({ id: r[0], email: r[1], fecha: r[2] || '', posicion_id: r[3] || '', valor_usd: parseFloat(r[4]) || 0 }))
+}
+
+export async function createInvValuaciones(datos: Omit<InvValuacion, 'id'>[]): Promise<void> {
+  let next = Date.now()
+  await agregarFilas('inv_valuaciones!A:E', datos.map(v => [String(next++), v.email, v.fecha, v.posicion_id, v.valor_usd]))
+}
