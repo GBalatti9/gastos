@@ -14,8 +14,8 @@ interface Props {
   opciones: Opcion[]
   className?: string
   itemClassName?: string
-  /** `grid` reparte en columnas iguales; `wrap` deja que fluyan. */
-  layout?: 'grid' | 'wrap'
+  /** `grid` reparte en columnas iguales; `wrap` fluye estirando; `chips` fluye con ancho natural. */
+  layout?: 'grid' | 'wrap' | 'chips'
   columnas?: 2 | 3 | 4 | 5
   'aria-label'?: string
 }
@@ -62,10 +62,11 @@ export function OpcionesToggle({
           className={cn(
             'h-10 min-w-0 justify-center px-2 text-sm aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground',
             layout === 'wrap' && 'flex-1',
+            layout === 'chips' && 'whitespace-nowrap',
             itemClassName
           )}
         >
-          <span className="truncate">{o.label}</span>
+          <span className={layout === 'chips' ? 'whitespace-nowrap' : 'truncate'}>{o.label}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

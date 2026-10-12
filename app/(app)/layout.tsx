@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
 import { MobileNav } from '@/components/mobile-nav'
+import { ScrollToTop } from '@/components/scroll-to-top'
 import { NuevoGastoDeepLink } from '@/components/gastos/nuevo-gasto-deeplink'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { getUserByEmail, getOtherUser } from '@/lib/users'
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </SidebarInset>
       <MobileNav {...usuarios} />
+      <ScrollToTop />
       <Suspense fallback={null}>
         <NuevoGastoDeepLink {...usuarios} />
       </Suspense>

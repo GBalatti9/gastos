@@ -13,11 +13,10 @@ function configurar() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const privateKey = process.env.VAPID_PRIVATE_KEY
   if (!publicKey || !privateKey) return false
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:gastos@example.com',
-    publicKey,
-    privateKey
-  )
+  // El subject tiene que ser una URL: si cargaron el email pelado, le ponemos mailto:
+  const raw = (process.env.VAPID_SUBJECT || 'gastos@example.com').trim()
+  const subject = /^(mailto:|https?:\/\/)/i.test(raw) ? raw : `mailto:${raw}`
+  webpush.setVapidDetails(subject, publicKey, privateKey)
   return true
 }
 

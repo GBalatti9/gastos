@@ -24,7 +24,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { PromedioCard, FilaMes } from '@/components/dashboard/promedio-card'
+import { PromedioCard, PromedioDialog, FilaMes } from '@/components/dashboard/promedio-card'
+import { StatRow } from '@/components/dashboard/stat-row'
 import type { Gasto, Pago } from '@/lib/types'
 
 export interface PromedioPareja {
@@ -54,7 +55,7 @@ interface Props {
 
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}`
 
-type DialogKey = 'costo' | 'comprometido' | null
+type DialogKey = 'costo' | 'comprometido' | 'promedio' | null
 
 function PagosTable({ pagos, gastos, usuarios, showEstado }: { pagos: Pago[]; gastos: Gasto[]; usuarios: Record<string, string>; showEstado?: boolean }) {
   if (pagos.length === 0) {
@@ -124,9 +125,42 @@ export function SectionCards({
   const otroPromedio = promedio.soyU1 ? promedio.u2 : promedio.u1
   const otroNombre = promedio.soyU1 ? promedio.u2Nombre : promedio.u1Nombre
 
+  const pctCuotas = cuotasMesTotal > 0 ? Math.round((cuotasMesPagadas / cuotasMesTotal) * 100) : null
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+      {/* Mobile: una card con filas */}
+      <Card className="py-0 md:hidden">
+        <div className="divide-y">
+          <StatRow
+            label="Costo del mes"
+            value={ars(costoMes)}
+            hint={costoMesPrev > 0 ? `${costoUp ? '+' : ''}${costoDiff.toFixed(0)} % vs mes anterior` : 'sin mes anterior para comparar'}
+            onClick={() => setOpenDialog('costo')}
+          />
+          <StatRow
+            label="Promedio mensual"
+            value={promedio.meses.length ? ars(promedio.pareja) : '—'}
+            hint={promedio.meses.length ? `vos ${ars(miPromedio)} · ${otroNombre} ${ars(otroPromedio)} · ${promedio.meses.length} meses` : 'sin meses completos'}
+            onClick={() => setOpenDialog('promedio')}
+          />
+          <StatRow
+            label="Cuotas del mes"
+            value={`${cuotasMesPagadas}/${cuotasMesTotal}`}
+            hint={pctCuotas === null ? 'sin cuotas este mes' : `${pctCuotas} % pagadas`}
+            onClick={() => setOpenDialog('costo')}
+          />
+          <StatRow
+            label="Próximas cuotas"
+            value={comprometidoMonto < 1 ? '—' : ars(comprometidoMonto)}
+            hint={`${comprometidoCuotas} cuotas pendientes`}
+            onClick={() => setOpenDialog('comprometido')}
+          />
+        </div>
+      </Card>
+
+      {/* Desktop: grid de cards */}
+      <div className="hidden grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs md:grid @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
         {/* Costo del mes */}
         <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('costo')}>
           <CardHeader>
@@ -203,6 +237,15 @@ export function SectionCards({
           <PagosTable pagos={pagosCostoMes} gastos={gastos} usuarios={usuarios} showEstado />
         </DialogContent>
       </Dialog>
+
+      <PromedioDialog
+        open={openDialog === 'promedio'}
+        onOpenChange={(open) => !open && setOpenDialog(null)}
+        titulo="Promedio mensual"
+        meses={promedio.meses}
+        columnas={['Pareja', promedio.u1Nombre, promedio.u2Nombre]}
+        filas={promedio.filas}
+      />
 
       <Dialog open={openDialog === 'comprometido'} onOpenChange={(open) => !open && setOpenDialog(null)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">

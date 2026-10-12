@@ -24,7 +24,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { PromedioCard, FilaMes } from '@/components/dashboard/promedio-card'
+import { PromedioCard, PromedioDialog, FilaMes } from '@/components/dashboard/promedio-card'
+import { StatRow } from '@/components/dashboard/stat-row'
 import type { Gasto, Pago } from '@/lib/types'
 
 export interface PagoDetalle {
@@ -57,7 +58,7 @@ interface Props {
 
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}`
 
-type DialogKey = 'costo' | 'cash' | 'comprometido' | null
+type DialogKey = 'costo' | 'cash' | 'comprometido' | 'promedio' | null
 
 function DetalleTable({ detalle }: { detalle: PagoDetalle[] }) {
   if (detalle.length === 0) {
@@ -122,7 +123,24 @@ export function FinanzasCards({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+      {/* Mobile: una card con filas */}
+      <Card className="py-0 md:hidden">
+        <div className="divide-y">
+          <StatRow label="Costo real del mes" value={ars(costoReal)} hint={`casa ${ars(costoCasa)} · personal ${ars(costoPersonal)}`} onClick={() => setOpenDialog('costo')} />
+          <StatRow
+            label="Tu promedio mensual"
+            value={promedio.meses.length ? ars(promedio.total) : '—'}
+            hint={promedio.meses.length ? `casa ${ars(promedio.casa)} · personal ${ars(promedio.personal)} · ${promedio.meses.length} meses` : 'sin meses completos'}
+            onClick={() => setOpenDialog('promedio')}
+          />
+          <StatRow label="Cash flow del mes" value={ars(cashFlow)} hint={cashFlowPrev > 0 ? `${cashUp ? '+' : ''}${cashDiff.toFixed(0)} % vs mes anterior` : 'lo que pagaste vos este mes'} onClick={() => setOpenDialog('cash')} />
+          <StatRow label="Diferencia" value={`${diferencia >= 0 ? '+' : '−'}${ars(Math.abs(diferencia))}`} hint="cash flow − costo real" valueClassName={diferencia >= 0 ? 'text-green-favor' : 'text-orange-alert'} />
+          <StatRow label="Comprometido" value={comprometidoMonto < 1 ? '—' : ars(comprometidoMonto)} hint={`tu parte de ${comprometidoCuotas} cuotas pendientes`} onClick={() => setOpenDialog('comprometido')} />
+        </div>
+      </Card>
+
+      {/* Desktop: grid de cards */}
+      <div className="hidden grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs md:grid @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
         {/* Costo real del mes */}
         <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('costo')}>
           <CardHeader>
@@ -213,6 +231,16 @@ export function FinanzasCards({
           <DetalleTable detalle={detalleCostoReal} />
         </DialogContent>
       </Dialog>
+
+      <PromedioDialog
+        open={openDialog === 'promedio'}
+        onOpenChange={(open) => !open && setOpenDialog(null)}
+        titulo="Tu promedio mensual"
+        meses={promedio.meses}
+        columnas={['Total', 'Casa', 'Personal']}
+        filas={promedio.filas}
+        descripcion="Tu parte de los gastos compartidos más tus gastos personales, sobre meses completos. Cada cuota cuenta en el mes de su vencimiento. Las liquidaciones de deuda no cuentan."
+      />
 
       <Dialog open={openDialog === 'cash'} onOpenChange={(open) => !open && setOpenDialog(null)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
