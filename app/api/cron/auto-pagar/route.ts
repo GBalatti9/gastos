@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getGastos, getPagos, marcarPagoComoPagado } from '@/lib/google-sheets'
-import { format } from 'date-fns'
+import { hoyAR } from '@/lib/dates'
 
 /**
  * Marca como pagadas todas las cuotas vencidas.
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   }
 
   const [gastos, pagos] = await Promise.all([getGastos(), getPagos()])
-  const hoy = format(new Date(), 'yyyy-MM-dd')
+  const hoy = hoyAR()
 
   const pendientesVencidos = pagos.filter(p => {
     if (p.estado !== 'pendiente') return false

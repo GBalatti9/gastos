@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -10,6 +9,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer'
+import { Spinner } from '@/components/ui/spinner'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { NuevoGastoForm } from '@/components/gastos/nuevo-gasto-form'
 import type { Categoria, TarjetaCredito } from '@/lib/types'
 
@@ -18,8 +26,10 @@ interface Props {
   usuarioNombre: string
   otroUsuarioEmail: string
   otroUsuarioNombre: string
-  /** Elemento que abre el dialog (se usa como DialogTrigger via render). */
-  trigger: React.ReactElement
+  /** Elemento que abre el dialog. Si no se pasa, el dialog es controlado por `open`. */
+  trigger?: React.ReactElement
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 interface FormData {
@@ -27,15 +37,31 @@ interface FormData {
   tarjetas: TarjetaCredito[]
 }
 
+/**
+ * Alta de gasto. En desktop es un Dialog; en mobile un Drawer de abajo a
+ * casi pantalla completa (más cómodo con una mano y con el teclado abierto).
+ */
 export function NuevoGastoDialog({
   usuarioEmail,
   usuarioNombre,
   otroUsuarioEmail,
   otroUsuarioNombre,
   trigger,
+  open: openProp,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = React.useState(false)
+  const isMobile = useIsMobile()
+  const [openState, setOpenState] = React.useState(false)
+  const open = openProp ?? openState
   const [data, setData] = React.useState<FormData | null>(null)
+  const setOpen = React.useCallback(
+    (o: boolean) => {
+      setOpenState(o)
+      if (!o) setData(null) // descartar cache para refetchear al reabrir
+      onOpenChange?.(o)
+    },
+    [onOpenChange]
+  )
 
   React.useEffect(() => {
     if (!open) return
@@ -61,37 +87,44 @@ export function NuevoGastoDialog({
     }
   }, [open, usuarioEmail])
 
+  const form = data ? (
+    <NuevoGastoForm
+      categorias={data.categorias}
+      tarjetas={data.tarjetas}
+      usuarioEmail={usuarioEmail}
+      usuarioNombre={usuarioNombre}
+      otroUsuarioEmail={otroUsuarioEmail}
+      otroUsuarioNombre={otroUsuarioNombre}
+      onSuccess={() => setOpen(false)}
+    />
+  ) : (
+    <div className="flex h-40 items-center justify-center">
+      <Spinner className="size-5 text-muted-foreground" />
+    </div>
+  )
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
+        {trigger && <DrawerTrigger render={trigger} />}
+        <DrawerContent className="[--drawer-content-max-height:calc(100dvh-2.5rem)]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle>Nuevo gasto</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex-1 overflow-y-auto px-4 pb-2">{form}</div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o) setData(null) // descartar cache para refetchear al reabrir
-      }}
-    >
-      <DialogTrigger render={trigger} />
+    <Dialog open={open} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Nuevo gasto</DialogTitle>
         </DialogHeader>
-        {data ? (
-          <NuevoGastoForm
-            categorias={data.categorias}
-            tarjetas={data.tarjetas}
-            usuarioEmail={usuarioEmail}
-            usuarioNombre={usuarioNombre}
-            otroUsuarioEmail={otroUsuarioEmail}
-            otroUsuarioNombre={otroUsuarioNombre}
-            onSuccess={() => {
-              setOpen(false)
-              setData(null)
-            }}
-          />
-        ) : (
-          <div className="flex h-40 items-center justify-center">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        )}
+        {form}
       </DialogContent>
     </Dialog>
   )

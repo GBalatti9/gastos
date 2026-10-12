@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { parseLocalDate } from '@/lib/dates'
 import { Gasto, Pago, Categoria, TarjetaCredito } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -150,13 +151,8 @@ export function GastoDetalle({
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setEditando(false)}
-          >
-            <ArrowLeft className="h-4 w-4" />
+          <Button variant="ghost" size="icon" aria-label="Volver" onClick={() => setEditando(false)}>
+            <ArrowLeft />
           </Button>
           <h1 className="text-xl font-bold">Editar gasto</h1>
         </div>
@@ -185,11 +181,9 @@ export function GastoDetalle({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/gastos">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" render={<Link href="/gastos" />} nativeButton={false} aria-label="Volver">
+          <ArrowLeft />
+        </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="text-xl">{cat?.icono || '📦'}</span>
@@ -201,13 +195,8 @@ export function GastoDetalle({
           </div>
         </div>
         {gasto.estado === 'activo' && (
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 border-border"
-            onClick={() => setEditando(true)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
+          <Button variant="outline" size="icon" aria-label="Editar gasto" onClick={() => setEditando(true)}>
+            <Pencil />
           </Button>
         )}
       </div>
@@ -257,7 +246,7 @@ export function GastoDetalle({
             <div>
               <p className="text-xs text-muted-foreground">Fecha inicio</p>
               <p className="font-medium">
-                {format(new Date(gasto.fecha_inicio), "d MMM yyyy", { locale: es })}
+                {format(parseLocalDate(gasto.fecha_inicio), "d MMM yyyy", { locale: es })}
               </p>
             </div>
             <div>
@@ -307,7 +296,7 @@ export function GastoDetalle({
                         Cuota {pago.numero_cuota}/{gasto.cuotas}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Vence: {format(new Date(pago.fecha_vencimiento), "d MMM yyyy", { locale: es })}
+                        Vence: {format(parseLocalDate(pago.fecha_vencimiento), "d MMM yyyy", { locale: es })}
                       </p>
                     </div>
                   </div>
@@ -325,7 +314,7 @@ export function GastoDetalle({
                           variant="outline"
                           onClick={() => marcarComoPagado(pago)}
                           disabled={loadingPago === pago.id}
-                          className="h-8"
+                          className="h-10 md:h-8"
                         >
                           {loadingPago === pago.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -366,7 +355,7 @@ export function GastoDetalle({
                       <p className="text-xs text-muted-foreground">
                         Pagado{' '}
                         {pago.fecha_pago
-                          ? format(new Date(pago.fecha_pago), "d MMM yyyy", { locale: es })
+                          ? format(parseLocalDate(pago.fecha_pago), "d MMM yyyy", { locale: es })
                           : ''}
                       </p>
                     </div>
@@ -383,11 +372,11 @@ export function GastoDetalle({
 
       {gasto.estado === 'activo' && (
         <AlertDialog>
-          <AlertDialogTrigger className="w-full rounded-md bg-destructive text-white px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+          <AlertDialogTrigger render={<Button variant="destructive" size="lg" className="w-full sm:w-auto" disabled={loadingCancelar} />}>
             {loadingCancelar ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 data-icon="inline-start" className="animate-spin" />
             ) : (
-              <Trash2 className="h-4 w-4" />
+              <Trash2 data-icon="inline-start" />
             )}
             Cancelar gasto
           </AlertDialogTrigger>

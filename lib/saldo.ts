@@ -1,6 +1,45 @@
 import { Gasto, Pago, SaldoData, Moneda } from './types'
 import { getUsers } from './users'
 
+/**
+ * Porcentaje que le corresponde al PAGADOR en una división "porcentaje".
+ * Ojo: `parseFloat('0') || 50` daba 50 y rompía las liquidaciones (que usan 0 %).
+ */
+export function porcentajePagador(divisionValor: string): number {
+  const raw = parseFloat(divisionValor)
+  if (!Number.isFinite(raw)) return 50
+  return Math.min(100, Math.max(0, raw))
+}
+
+/**
+ * Split de una cuota desde el punto de vista del usuario actual.
+ * Lo usan los forms para el preview. Misma lógica que `calcularResponsabilidad`.
+ */
+export function calcularSplitCuota(
+  montoCuota: number,
+  tipoDivision: string,
+  divisionValor: string,
+  yoSoyPagador: boolean
+): { yo: number; otro: number } {
+  switch (tipoDivision) {
+    case 'porcentaje': {
+      const pct = porcentajePagador(divisionValor) / 100
+      const yo = yoSoyPagador ? montoCuota * pct : montoCuota * (1 - pct)
+      return { yo, otro: montoCuota - yo }
+    }
+    case 'monto_fijo': {
+      const fijo = parseFloat(divisionValor) || 0
+      const resto = Math.max(0, montoCuota - fijo)
+      if (yoSoyPagador) return { yo: resto, otro: fijo }
+      return { yo: fijo, otro: resto }
+    }
+    case 'personal':
+      return yoSoyPagador ? { yo: montoCuota, otro: 0 } : { yo: 0, otro: montoCuota }
+    default:
+      return { yo: montoCuota / 2, otro: montoCuota / 2 }
+  }
+}
+
 // Calcula cuánto debería haber pagado cada usuario para un gasto dado
 export function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: number; u2: number } {
   const [u1] = getUsers()
@@ -8,8 +47,7 @@ export function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: 
 
   switch (gasto.tipo_division) {
     case 'porcentaje': {
-      const pct = parseFloat(gasto.division_valor) || 50
-      const pctPagador = pct / 100
+      const pctPagador = porcentajePagador(gasto.division_valor) / 100
       const pctOtro = 1 - pctPagador
       return pagadorEsU1
         ? { u1: montoPago * pctPagador, u2: montoPago * pctOtro }
@@ -32,6 +70,23 @@ export function calcularResponsabilidad(gasto: Gasto, montoPago: number): { u1: 
   }
 }
 
+/**
+ * Responsabilidad de cada usuario sobre el TOTAL de un gasto, sumando cuota
+ * por cuota. Importa para `monto_fijo`, donde el fijo es por cuota: aplicar
+ * `calcularResponsabilidad(g, g.monto_total)` lo contaría una sola vez.
+ */
+export function responsabilidadTotal(gasto: Gasto, pagos: Pago[]): { u1: number; u2: number } {
+  const propios = pagos.filter(p => p.gasto_id === gasto.id)
+  if (propios.length === 0) return calcularResponsabilidad(gasto, gasto.monto_total)
+  return propios.reduce(
+    (acc, p) => {
+      const r = calcularResponsabilidad(gasto, p.monto)
+      return { u1: acc.u1 + r.u1, u2: acc.u2 + r.u2 }
+    },
+    { u1: 0, u2: 0 }
+  )
+}
+
 export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = 'ARS'): SaldoData {
   const [u1, u2] = getUsers()
 
@@ -41,20 +96,18 @@ export function calcularSaldo(pagos: Pago[], gastos: Gasto[], moneda: Moneda = '
   const gastosFiltrados = gastos.filter(
     g => (g.moneda || 'ARS') === moneda && g.estado === 'activo' && g.tipo_division !== 'personal'
   )
-  const gastoIds = new Set(gastosFiltrados.map(g => g.id))
+  const porId = new Map(gastosFiltrados.map(g => [g.id, g]))
 
   let debeU1 = 0
-  let debeU2 = 0
   let pagoU1 = 0
   let pagoU2 = 0
 
   for (const pago of pagos) {
-    const gasto = gastos.find(g => g.id === pago.gasto_id)
-    if (!gasto || !gastoIds.has(gasto.id)) continue
+    const gasto = porId.get(pago.gasto_id)
+    if (!gasto) continue
 
-    const { u1: resp1, u2: resp2 } = calcularResponsabilidad(gasto, pago.monto)
+    const { u1: resp1 } = calcularResponsabilidad(gasto, pago.monto)
     debeU1 += resp1
-    debeU2 += resp2
 
     const pagador = pago.pagado_por || gasto.pagado_por
     if (pagador === u1.email) pagoU1 += pago.monto
@@ -90,21 +143,11 @@ export function calcularSaldoMensual(
   moneda: Moneda,
   mes: string // formato: "2026-04"
 ): SaldoData {
-  const [anio, mesNum] = mes.split('-').map(Number)
-  const pagosMes = pagos.filter(p => {
-    // Extraer año/mes del string directamente para evitar bugs de timezone
-    // (new Date("2026-03-01") en UTC-3 da febrero 28 local)
-    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
-    return y === anio && m === mesNum
-  })
+  // Comparar por string evita bugs de timezone con new Date("2026-03-01")
+  const pagosMes = pagos.filter(p => p.fecha_vencimiento.slice(0, 7) === mes)
   return calcularSaldo(pagosMes, gastos, moneda)
 }
 
-/**
- * Calcula el saldo acumulado hasta el final del mes indicado (inclusive).
- * Incluye todos los pagos con fecha_vencimiento <= último día del mes.
- * Esto da el comportamiento "Splitwise" donde deudas impagas se arrastran.
- */
 /**
  * Calcula el saldo solo con pagos cuya fecha_vencimiento > fin del mes indicado (futuro).
  */
@@ -114,24 +157,21 @@ export function calcularSaldoFuturo(
   moneda: Moneda,
   mes: string // formato: "2026-06"
 ): SaldoData {
-  const [anio, mesNum] = mes.split('-').map(Number)
-  const pagosFuturos = pagos.filter(p => {
-    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
-    return y > anio || (y === anio && m > mesNum)
-  })
+  const pagosFuturos = pagos.filter(p => p.fecha_vencimiento.slice(0, 7) > mes)
   return calcularSaldo(pagosFuturos, gastos, moneda)
 }
 
+/**
+ * Calcula el saldo acumulado hasta el final del mes indicado (inclusive).
+ * Incluye todos los pagos con fecha_vencimiento <= último día del mes.
+ * Esto da el comportamiento "Splitwise" donde deudas impagas se arrastran.
+ */
 export function calcularSaldoAcumulado(
   pagos: Pago[],
   gastos: Gasto[],
   moneda: Moneda,
   mes: string // formato: "2026-04"
 ): SaldoData {
-  const [anio, mesNum] = mes.split('-').map(Number)
-  const pagosHastaMes = pagos.filter(p => {
-    const [y, m] = p.fecha_vencimiento.split('-').map(Number)
-    return y < anio || (y === anio && m <= mesNum)
-  })
+  const pagosHastaMes = pagos.filter(p => p.fecha_vencimiento.slice(0, 7) <= mes)
   return calcularSaldo(pagosHastaMes, gastos, moneda)
 }

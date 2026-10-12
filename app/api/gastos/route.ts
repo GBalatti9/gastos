@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     recurrente: recurrente === 'si',
     metodo_pago: body.metodo_pago || 'efectivo',
     tarjeta_id: body.tarjeta_id || '',
+    creado_por: session.user?.email || '',
   })
 
   // Generate payment rows

@@ -65,14 +65,14 @@ export function ChartCategorias({
       </CardHeader>
       <CardContent className="flex-1">
         {chartData.length === 0 ? (
-          <div className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground md:h-[250px]">
             Sin gastos este mes
           </div>
         ) : (
           <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
           <ChartContainer
             config={chartConfig}
-            className="aspect-square w-full max-w-[300px] shrink-0"
+            className="aspect-square w-full max-w-[220px] shrink-0 md:max-w-[300px]"
           >
             <PieChart>
               <ChartTooltip
@@ -118,7 +118,7 @@ export function ChartCategorias({
                 <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                   {total > 0 ? `${Math.round((row.total / total) * 100)}%` : ''}
                 </span>
-                <span className="w-28 text-right font-medium tabular-nums">
+                <span className="w-24 text-right font-medium tabular-nums md:w-28">
                   $ {Math.round(row.total).toLocaleString('es-AR')}
                 </span>
               </div>

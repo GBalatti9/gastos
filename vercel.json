@@ -6,11 +6,19 @@
     },
     {
       "path": "/api/cron/recurrentes",
-      "schedule": "0 9 25 * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/auto-pagar",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/recordatorio-carga",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/inversion-alertas",
+      "schedule": "30 0 * * *"
     }
   ]
 }

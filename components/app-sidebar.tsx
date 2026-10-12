@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Wallet,
+  TrendingUp,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -35,7 +36,8 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/gastos', label: 'Gastos', icon: List },
   { href: '/personal', label: 'Mis finanzas', icon: Wallet },
-  { href: '/configuracion', label: 'Configuración', icon: Settings },
+  { href: '/inversion', label: 'Inversión', icon: TrendingUp },
+  { href: '/configuracion', label: 'Ajustes', icon: Settings },
 ]
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {

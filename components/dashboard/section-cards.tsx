@@ -24,33 +24,45 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { PromedioCard, FilaMes } from '@/components/dashboard/promedio-card'
 import type { Gasto, Pago } from '@/lib/types'
 
+export interface PromedioPareja {
+  pareja: number
+  u1: number
+  u2: number
+  meses: string[]
+  filas: FilaMes[]
+  u1Nombre: string
+  u2Nombre: string
+  soyU1: boolean
+}
+
 interface Props {
-  gastadoMes: number
-  gastadoMesPrev: number
+  costoMes: number
+  costoMesPrev: number
   comprometidoMonto: number
   comprometidoCuotas: number
   cuotasMesTotal: number
   cuotasMesPagadas: number
-  pagosGastadoMes: Pago[]
+  pagosCostoMes: Pago[]
   pagosComprometido: Pago[]
-  pagosCuotasMes: Pago[]
   gastos: Gasto[]
   usuarios: Record<string, string>
+  promedio: PromedioPareja
 }
 
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}`
 
-type DialogKey = 'gastado' | 'comprometido' | 'cuotas' | null
+type DialogKey = 'costo' | 'comprometido' | null
 
 function PagosTable({ pagos, gastos, usuarios, showEstado }: { pagos: Pago[]; gastos: Gasto[]; usuarios: Record<string, string>; showEstado?: boolean }) {
   if (pagos.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">Sin datos</p>
+    return <p className="py-4 text-center text-sm text-muted-foreground">Sin datos</p>
   }
   return (
-    <div className="max-h-80 overflow-y-auto">
-      <Table>
+    <div className="max-h-80 overflow-auto">
+      <Table className="min-w-[480px]">
         <TableHeader>
           <TableRow>
             <TableHead>Descripción</TableHead>
@@ -89,49 +101,69 @@ function PagosTable({ pagos, gastos, usuarios, showEstado }: { pagos: Pago[]; ga
 }
 
 export function SectionCards({
-  gastadoMes,
-  gastadoMesPrev,
+  costoMes,
+  costoMesPrev,
   comprometidoMonto,
   comprometidoCuotas,
   cuotasMesTotal,
   cuotasMesPagadas,
-  pagosGastadoMes,
+  pagosCostoMes,
   pagosComprometido,
-  pagosCuotasMes,
   gastos,
   usuarios,
+  promedio,
 }: Props) {
   const [openDialog, setOpenDialog] = useState<DialogKey>(null)
 
-  const gastoDiff = gastadoMesPrev > 0
-    ? ((gastadoMes - gastadoMesPrev) / gastadoMesPrev) * 100
+  const costoDiff = costoMesPrev > 0
+    ? ((costoMes - costoMesPrev) / costoMesPrev) * 100
     : 0
-  const gastoUp = gastoDiff >= 0
+  const costoUp = costoDiff >= 0
+
+  const miPromedio = promedio.soyU1 ? promedio.u1 : promedio.u2
+  const otroPromedio = promedio.soyU1 ? promedio.u2 : promedio.u1
+  const otroNombre = promedio.soyU1 ? promedio.u2Nombre : promedio.u1Nombre
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-3 dark:*:data-[slot=card]:bg-card">
-        {/* Gastado este mes */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('gastado')}>
+      <div className="grid grid-cols-2 gap-3 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:gap-4 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+        {/* Costo del mes */}
+        <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('costo')}>
           <CardHeader>
-            <CardDescription>Gastado este mes</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {ars(gastadoMes)}
+            <CardDescription>Costo del mes</CardDescription>
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {ars(costoMes)}
             </CardTitle>
             <CardAction>
               <Badge variant="outline">
-                {gastoUp ? <TrendingUp /> : <TrendingDown />}
-                {gastoUp ? '+' : ''}{gastoDiff.toFixed(1)}%
+                {costoUp ? <TrendingUp /> : <TrendingDown />}
+                {costoUp ? '+' : ''}{costoDiff.toFixed(0)}%
               </Badge>
             </CardAction>
           </CardHeader>
         </Card>
 
+        {/* Promedio mensual */}
+        <PromedioCard
+          titulo="Promedio mensual"
+          monto={promedio.pareja}
+          meses={promedio.meses}
+          columnas={['Pareja', promedio.u1Nombre, promedio.u2Nombre]}
+          filas={promedio.filas}
+          detalle={
+            promedio.meses.length > 0 ? (
+              <span className="truncate">
+                vos {ars(miPromedio)} · {otroNombre} {ars(otroPromedio)}
+              </span>
+            ) : undefined
+          }
+        />
+
         {/* Cuotas del mes */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('cuotas')}>
+        <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('costo')}>
           <CardHeader>
             <CardDescription>Cuotas del mes</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {cuotasMesPagadas}/{cuotasMesTotal}
             </CardTitle>
             <CardAction>
@@ -146,16 +178,16 @@ export function SectionCards({
         </Card>
 
         {/* Próximas cuotas */}
-        <Card className="@container/card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setOpenDialog('comprometido')}>
+        <Card className="@container/card cursor-pointer transition-colors hover:border-primary/30" onClick={() => setOpenDialog('comprometido')}>
           <CardHeader>
             <CardDescription>Próximas cuotas</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl col-span-2">
+            <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-3xl">
               {comprometidoMonto < 1 ? 'Sin cuotas' : ars(comprometidoMonto)}
             </CardTitle>
             <CardAction>
               <Badge variant="outline">
                 <Layers />
-                {comprometidoCuotas} cuotas
+                {comprometidoCuotas}
               </Badge>
             </CardAction>
           </CardHeader>
@@ -163,30 +195,21 @@ export function SectionCards({
       </div>
 
       {/* Dialogs */}
-      <Dialog open={openDialog === 'gastado'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
+      <Dialog open={openDialog === 'costo'} onOpenChange={(open) => !open && setOpenDialog(null)}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Gastado este mes</DialogTitle>
+            <DialogTitle>Costo del mes</DialogTitle>
           </DialogHeader>
-          <PagosTable pagos={pagosGastadoMes} gastos={gastos} usuarios={usuarios} />
+          <PagosTable pagos={pagosCostoMes} gastos={gastos} usuarios={usuarios} showEstado />
         </DialogContent>
       </Dialog>
 
       <Dialog open={openDialog === 'comprometido'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Próximas cuotas</DialogTitle>
           </DialogHeader>
           <PagosTable pagos={pagosComprometido} gastos={gastos} usuarios={usuarios} />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={openDialog === 'cuotas'} onOpenChange={(open) => !open && setOpenDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Cuotas del mes</DialogTitle>
-          </DialogHeader>
-          <PagosTable pagos={pagosCuotasMes} gastos={gastos} usuarios={usuarios} showEstado />
         </DialogContent>
       </Dialog>
     </>

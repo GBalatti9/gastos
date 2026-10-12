@@ -96,7 +96,7 @@ export function SaldarDeuda({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpen}>
-      <AlertDialogTrigger render={<Button size="lg" />}>Saldar deuda</AlertDialogTrigger>
+      <AlertDialogTrigger render={<Button size="lg" className="w-full sm:w-auto" />}>Saldar deuda</AlertDialogTrigger>
 
       <AlertDialogContent>
         <AlertDialogHeader>

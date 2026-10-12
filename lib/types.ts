@@ -19,6 +19,17 @@ export interface Gasto {
   recurrente: boolean
   metodo_pago: MetodoPago
   tarjeta_id: string
+  /** Email de quien cargó el gasto (columna Q, puede faltar en filas viejas). */
+  creado_por?: string
+}
+
+export interface PushSub {
+  email: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent: string
+  created_at: string
 }
 
 export interface Pago {
@@ -49,29 +60,10 @@ export interface SaldoData {
   moneda: Moneda
 }
 
-export interface Cierre {
-  id: string
-  mes: string // formato: 2026-04
-  saldo_user1: number
-  saldo_user2: number
-  deuda_final: number
-  deudor: string // email
-  acreedor: string // email
-  fecha_cierre: string // ISO date
-  moneda: Moneda
-}
-
 export interface ProximoVencimiento {
   pago: Pago
   gasto: Gasto
   dias_restantes: number
-}
-
-export interface ResumenMes {
-  total: number
-  por_categoria: { categoria: string; total: number; color: string }[]
-  user1_pago: number
-  user2_pago: number
 }
 
 export interface GastoConPagos extends Gasto {
@@ -100,4 +92,75 @@ export interface NotificacionPayload {
   pago?: Pago
   autor_email: string
   autor_nombre: string
+}
+
+// ─── Inversión con objetivo ───────────────────────────────────────────────────
+
+export type InvTipoCobro = 'base' | 'extra'
+export type InvRol = 'core' | 'satelite' | 'seguro'
+/** Tipo de activo de una posición. Define moneda de cotización y si hay precio automático. */
+export type InvTipoActivo = 'cedear' | 'accion' | 'bono' | 'letra' | 'fci' | 'plazo_fijo' | 'cripto' | 'dolares' | 'otro'
+
+export interface InvMeta {
+  id: string
+  email: string
+  nombre: string
+  monto_objetivo_usd: number
+  fecha_objetivo: string // YYYY-MM
+  aporte_base_usd: number
+  ingreso_base_ars: number
+  pct_extra: number // 0-100
+  fecha_inicio: string // YYYY-MM
+  /** % de la cartera que debe estar en el balde "seguro" a 24, 12 y 6 meses de la fecha objetivo. */
+  desriesgo_etapas: [number, number, number]
+}
+
+export interface InvCobro {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  monto_ars: number
+  tipo: InvTipoCobro
+  tipo_cambio: number
+  notas: string
+}
+
+export interface InvAporte {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  monto_usd: number
+  monto_ars: number
+  tipo_cambio: number
+  posicion_id: string
+  cobro_id: string
+  notas: string
+  /** Unidades compradas (acciones, nominales, cripto). 0 si no aplica. */
+  unidades: number
+  /** Precio unitario en la moneda de cotización al momento del aporte. */
+  precio: number
+  meta_id: string
+}
+
+export interface InvPosicion {
+  id: string
+  email: string
+  ticker: string
+  nombre: string
+  peso_objetivo: number // 0-100
+  rol: InvRol
+  activo: boolean
+  tipo: InvTipoActivo
+  /** Moneda en la que cotiza (CEDEAR/bono/FCI → ARS; cripto/dólares → USD). */
+  moneda: 'ARS' | 'USD'
+  meta_id: string
+}
+
+export interface InvValuacion {
+  id: string
+  email: string
+  fecha: string // YYYY-MM-DD
+  posicion_id: string
+  valor_usd: number
+  meta_id: string
 }

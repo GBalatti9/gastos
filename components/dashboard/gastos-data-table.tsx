@@ -13,8 +13,9 @@ import {
   ArrowUp,
   ArrowDown,
   Trash2,
-  Loader2,
   Pencil,
+  SlidersHorizontal,
+  Search,
 } from 'lucide-react'
 import {
   flexRender,
@@ -34,6 +35,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
   Select,
   SelectContent,
@@ -60,6 +63,16 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerClose,
+} from '@/components/ui/drawer'
+import { cn } from '@/lib/utils'
 
 interface Usuario {
   email: string
@@ -76,6 +89,8 @@ interface Props {
   miPartes?: Record<string, number>
   /** Agrega filtros de mes, pagador y estado en la toolbar (usado en /gastos). */
   conFiltros?: boolean
+  /** IDs de gastos que son liquidaciones de deuda (se marcan con badge). */
+  liquidaciones?: string[]
 }
 
 interface GastoRow {
@@ -88,6 +103,7 @@ interface GastoRow {
   cuotasTotal: number
   esCuotas: boolean
   esPersonal: boolean
+  esLiquidacion: boolean
   monto: number
   miParte: number
   simbolo: string
@@ -95,6 +111,8 @@ interface GastoRow {
   estado: string
   meses: string[]
 }
+
+const fmtMonto = (simbolo: string, n: number) => `${simbolo} ${Math.round(n).toLocaleString('es-AR')}`
 
 function SortHeader({
   column,
@@ -128,7 +146,35 @@ function SortHeader({
   )
 }
 
-export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTipo, miPartes, conFiltros }: Props) {
+function FiltroSelect({
+  label,
+  value,
+  onChange,
+  children,
+  className,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <Select value={value} onValueChange={(v) => onChange((v as string) ?? '')}>
+        <SelectTrigger size="sm" className={cn('w-full md:w-36', className)}>
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>{children}</SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTipo, miPartes, conFiltros, liquidaciones }: Props) {
   const router = useRouter()
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'vencimiento', desc: true },
@@ -137,7 +183,8 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
   const [rowSelection, setRowSelection] = React.useState({})
   const [deleting, setDeleting] = React.useState(false)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
-  const [anioFilter, setAnioFilter] = React.useState(String(new Date().getFullYear()))
+  const anioActual = String(new Date().getFullYear())
+  const [anioFilter, setAnioFilter] = React.useState(anioActual)
   const [mesFilter, setMesFilter] = React.useState('todos')
   const [estadoFilter, setEstadoFilter] = React.useState('activo')
 
@@ -157,6 +204,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
           cuotasTotal: gastoPagos.length || gasto.cuotas,
           esCuotas: gasto.cuotas > 1,
           esPersonal: gasto.tipo_division === 'personal',
+          esLiquidacion: liquidaciones?.includes(gasto.id) ?? false,
           monto: gasto.monto_total,
           miParte: miPartes?.[gasto.id] ?? 0,
           simbolo: gasto.moneda === 'USD' ? 'U$S' : '$',
@@ -167,7 +215,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
           meses: [...new Set(gastoPagos.map((p) => p.fecha_vencimiento.slice(0, 7)))],
         }
       }),
-    [gastos, pagos, categorias, usuarios, miPartes]
+    [gastos, pagos, categorias, usuarios, miPartes, liquidaciones]
   )
 
   // Años disponibles para el filtro (más recientes primero)
@@ -239,6 +287,9 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
             <span className="truncate">{row.original.descripcion}</span>
             {row.original.estado === 'cancelado' && (
               <Badge variant="destructive" className="ml-1">Cancelado</Badge>
+            )}
+            {row.original.esLiquidacion && (
+              <Badge variant="secondary" className="ml-1">Liquidación</Badge>
             )}
           </Link>
         ),
@@ -325,8 +376,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
               ),
               cell: ({ row }) => (
                 <div className="text-right font-medium tabular-nums">
-                  {row.original.simbolo}{' '}
-                  {Math.round(row.original.miParte).toLocaleString('es-AR')}
+                  {fmtMonto(row.original.simbolo, row.original.miParte)}
                 </div>
               ),
             },
@@ -336,11 +386,15 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
         id: 'acciones',
         header: () => <span className="sr-only">Acciones</span>,
         cell: ({ row }) => (
-          <Link href={`/gastos/${row.original.id}`}>
-            <Button variant="ghost" size="icon-sm" aria-label="Editar gasto">
-              <Pencil />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Editar gasto"
+            render={<Link href={`/gastos/${row.original.id}`} />}
+            nativeButton={false}
+          >
+            <Pencil />
+          </Button>
         ),
         enableSorting: false,
       },
@@ -374,6 +428,25 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
   const tipoFilter =
     tipoFilterValue === undefined ? 'todos' : tipoFilterValue ? 'personal' : 'compartido'
 
+  const filtrosActivos =
+    (catFilter !== 'todas' ? 1 : 0) +
+    (tipoFilter !== 'todos' ? 1 : 0) +
+    (conFiltros
+      ? (anioFilter !== anioActual ? 1 : 0) +
+        (mesFilter !== 'todos' ? 1 : 0) +
+        (pagadorFilter !== 'todos' ? 1 : 0) +
+        (estadoFilter !== 'activo' ? 1 : 0)
+      : 0)
+
+  function limpiarFiltros() {
+    table.getColumn('categoria')?.setFilterValue(undefined)
+    table.getColumn('esPersonal')?.setFilterValue(undefined)
+    table.getColumn('pagadorNombre')?.setFilterValue(undefined)
+    setAnioFilter(anioActual)
+    setMesFilter('todos')
+    setEstadoFilter('activo')
+  }
+
   async function handleEliminar() {
     setDeleting(true)
     try {
@@ -402,193 +475,220 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
     }
   }
 
+  // Los mismos controles de filtro se usan inline (desktop) y en un Drawer (mobile)
+  const filtros = (
+    <>
+      <FiltroSelect
+        label="Categoría"
+        value={catFilter}
+        onChange={(v) => table.getColumn('categoria')?.setFilterValue(v === 'todas' ? undefined : v)}
+        className="md:w-40"
+      >
+        <SelectItem value="todas">Todas</SelectItem>
+        {categorias.map((c) => (
+          <SelectItem key={c.id} value={c.nombre}>
+            {c.icono} {c.nombre}
+          </SelectItem>
+        ))}
+      </FiltroSelect>
+      {mostrarTipo && (
+        <FiltroSelect
+          label="Tipo"
+          value={tipoFilter}
+          onChange={(v) => table.getColumn('esPersonal')?.setFilterValue(v === 'todos' ? undefined : v === 'personal')}
+        >
+          <SelectItem value="todos">Todos</SelectItem>
+          <SelectItem value="personal">Personal</SelectItem>
+          <SelectItem value="compartido">Compartido</SelectItem>
+        </FiltroSelect>
+      )}
+      {conFiltros && (
+        <>
+          <FiltroSelect
+            label="Año"
+            value={anioFilter}
+            onChange={(v) => {
+              setAnioFilter(v || 'todos')
+              setMesFilter('todos')
+            }}
+            className="md:w-28"
+          >
+            <SelectItem value="todos">Todos</SelectItem>
+            {anioOptions.map((anio) => (
+              <SelectItem key={anio} value={anio}>
+                {anio}
+              </SelectItem>
+            ))}
+          </FiltroSelect>
+          <FiltroSelect label="Mes" value={mesFilter} onChange={(v) => setMesFilter(v || 'todos')} className="capitalize">
+            <SelectItem value="todos">Todos los meses</SelectItem>
+            {mesOptions.map((mes) => (
+              <SelectItem key={mes} value={mes} className="capitalize">
+                {format(new Date(2000, Number(mes) - 1, 1), 'MMMM', { locale: es })}
+              </SelectItem>
+            ))}
+          </FiltroSelect>
+          <FiltroSelect
+            label="Pagador"
+            value={pagadorFilter}
+            onChange={(v) => table.getColumn('pagadorNombre')?.setFilterValue(v === 'todos' ? undefined : v)}
+            className="md:w-32"
+          >
+            <SelectItem value="todos">Todos</SelectItem>
+            {usuarios.map((u) => (
+              <SelectItem key={u.email} value={u.nombre}>
+                {u.nombre}
+              </SelectItem>
+            ))}
+          </FiltroSelect>
+          <FiltroSelect label="Estado" value={estadoFilter} onChange={(v) => setEstadoFilter(v || 'activo')} className="md:w-32">
+            <SelectItem value="activo">Activos</SelectItem>
+            <SelectItem value="cancelado">Cancelados</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
+          </FiltroSelect>
+        </>
+      )}
+    </>
+  )
+
+  const eliminarDialog = seleccionados.length > 0 && (
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
+        <Trash2 data-icon="inline-start" />
+        Eliminar ({seleccionados.length})
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            ¿Eliminar {seleccionados.length === 1 ? 'este gasto' : `${seleccionados.length} gastos`}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Los gastos se marcarán como cancelados y dejarán de contar en el
+            saldo. Esta acción no se puede deshacer desde la app.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+          <Button variant="destructive" onClick={handleEliminar} disabled={deleting}>
+            {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
+            Eliminar
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+
+  const pageRows = table.getRowModel().rows
+  const totalFiltrado = table.getFilteredRowModel().rows.length
+
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-2">
-        <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <span className="text-xs font-medium text-muted-foreground">Buscar</span>
-          <Input
-            placeholder="Buscar gasto..."
-            value={(table.getColumn('descripcion')?.getFilterValue() as string) ?? ''}
-            onChange={(e) =>
-              table.getColumn('descripcion')?.setFilterValue(e.target.value)
-            }
-            className="w-full sm:max-w-56"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Categoría</span>
-          <Select
-            value={catFilter}
-            onValueChange={(v) =>
-              table
-                .getColumn('categoria')
-                ?.setFilterValue(v === 'todas' ? undefined : v)
-            }
-          >
-            <SelectTrigger size="sm" className="w-40">
-              <SelectValue placeholder="Categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="todas">Todas</SelectItem>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={c.nombre}>
-                    {c.icono} {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        {mostrarTipo && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Tipo</span>
-            <Select
-              value={tipoFilter}
-              onValueChange={(v) =>
-                table
-                  .getColumn('esPersonal')
-                  ?.setFilterValue(v === 'todos' ? undefined : v === 'personal')
+        <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-none">
+          <span className="hidden text-xs font-medium text-muted-foreground md:block">Buscar</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar gasto…"
+              aria-label="Buscar gasto"
+              value={(table.getColumn('descripcion')?.getFilterValue() as string) ?? ''}
+              onChange={(e) =>
+                table.getColumn('descripcion')?.setFilterValue(e.target.value)
               }
-            >
-              <SelectTrigger size="sm" className="w-36">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="personal">Personal</SelectItem>
-                  <SelectItem value="compartido">Compartido</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              className="w-full pl-8 text-base md:max-w-56 md:text-sm"
+            />
           </div>
-        )}
-        {conFiltros && (
-          <>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Año</span>
-              <Select
-                value={anioFilter}
-                onValueChange={(v) => {
-                  setAnioFilter(v ?? 'todos')
-                  setMesFilter('todos')
-                }}
-              >
-                <SelectTrigger size="sm" className="w-28">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {anioOptions.map((anio) => (
-                      <SelectItem key={anio} value={anio}>
-                        {anio}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Mes</span>
-              <Select value={mesFilter} onValueChange={(v) => setMesFilter(v ?? 'todos')}>
-                <SelectTrigger size="sm" className="w-36 capitalize">
-                  <SelectValue placeholder="Mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="todos">Todos los meses</SelectItem>
-                    {mesOptions.map((mes) => (
-                      <SelectItem key={mes} value={mes} className="capitalize">
-                        {format(new Date(2000, Number(mes) - 1, 1), 'MMMM', { locale: es })}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Pagador</span>
-              <Select
-                value={pagadorFilter}
-                onValueChange={(v) =>
-                  table
-                    .getColumn('pagadorNombre')
-                    ?.setFilterValue(v === 'todos' ? undefined : v)
-                }
-              >
-                <SelectTrigger size="sm" className="w-32">
-                  <SelectValue placeholder="Pagador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {usuarios.map((u) => (
-                      <SelectItem key={u.email} value={u.nombre}>
-                        {u.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Estado</span>
-              <Select value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? 'activo')}>
-                <SelectTrigger size="sm" className="w-32">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="activo">Activos</SelectItem>
-                    <SelectItem value="cancelado">Cancelados</SelectItem>
-                    <SelectItem value="todos">Todos</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </>
-        )}
+        </div>
+
+        {/* Mobile: filtros en drawer */}
+        <div className="md:hidden">
+          <Drawer showSwipeHandle>
+            <DrawerTrigger render={<Button variant="outline" />}>
+              <SlidersHorizontal data-icon="inline-start" />
+              Filtros
+              {filtrosActivos > 0 && <Badge className="ml-1">{filtrosActivos}</Badge>}
+            </DrawerTrigger>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Filtros</DrawerTitle>
+              </DrawerHeader>
+              <div className="flex flex-col gap-4 overflow-y-auto p-4">{filtros}</div>
+              <DrawerFooter className="flex-row pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <Button variant="outline" className="flex-1" onClick={limpiarFiltros}>
+                  Limpiar
+                </Button>
+                <DrawerClose render={<Button className="flex-1" />}>Ver {totalFiltrado}</DrawerClose>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        </div>
+
+        {/* Desktop: filtros inline */}
+        <div className="hidden flex-wrap items-end gap-2 md:flex">{filtros}</div>
+
         <div className="ml-auto flex items-center gap-2">
-          {seleccionados.length > 0 && (
-            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-              <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
-                <Trash2 data-icon="inline-start" />
-                Eliminar ({seleccionados.length})
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    ¿Eliminar {seleccionados.length === 1 ? 'este gasto' : `${seleccionados.length} gastos`}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Los gastos se marcarán como cancelados y dejarán de contar en el
-                    saldo. Esta acción no se puede deshacer desde la app.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-                  <Button variant="destructive" onClick={handleEliminar} disabled={deleting}>
-                    {deleting ? (
-                      <Loader2 data-icon="inline-start" className="animate-spin" />
-                    ) : (
-                      <Trash2 data-icon="inline-start" />
-                    )}
-                    Eliminar
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          <Badge variant="secondary">{table.getFilteredRowModel().rows.length} gastos</Badge>
+          {eliminarDialog}
+          <Badge variant="secondary">{totalFiltrado} gastos</Badge>
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="overflow-hidden rounded-xl border bg-card">
+      {/* Mobile: lista */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {pageRows.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>Sin gastos</EmptyTitle>
+              <EmptyDescription>No hay gastos que coincidan con los filtros.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          pageRows.map((row) => {
+            const r = row.original
+            return (
+              <div
+                key={row.id}
+                data-state={row.getIsSelected() && 'selected'}
+                className="flex items-center gap-3 rounded-xl border bg-card p-3 data-[state=selected]:border-primary/40 data-[state=selected]:bg-accent/40"
+              >
+                <Checkbox
+                  checked={row.getIsSelected()}
+                  onCheckedChange={(value) => row.toggleSelected(!!value)}
+                  aria-label="Seleccionar gasto"
+                />
+                <Link href={`/gastos/${r.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-xl">
+                    {r.icono}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-medium">{r.descripcion}</p>
+                      {r.estado === 'cancelado' && <Badge variant="destructive">Cancelado</Badge>}
+                      {r.esLiquidacion && <Badge variant="secondary">Liq.</Badge>}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {r.categoria} · {r.pagadorNombre}
+                      {r.esCuotas && ` · ${r.cuotasPagadas}/${r.cuotasTotal}`}
+                      {mostrarTipo && r.esPersonal && ' · personal'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold tabular-nums">
+                      {fmtMonto(r.simbolo, r.monto)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground tabular-nums">
+                      {miPartes ? `mi parte ${fmtMonto(r.simbolo, r.miParte)}` : r.vencimiento}
+                    </p>
+                  </div>
+                </Link>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop: tabla */}
+      <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -605,8 +705,8 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
+              {pageRows.length ? (
+                pageRows.map((row) => (
                   <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -633,7 +733,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
       {/* Paginación */}
       <div className="flex items-center justify-between">
         <div className="hidden text-sm text-muted-foreground sm:block">
-          {seleccionados.length} de {table.getFilteredRowModel().rows.length} seleccionados
+          {seleccionados.length} de {totalFiltrado} seleccionados
         </div>
         <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
           <div className="text-sm font-medium">
@@ -653,7 +753,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
             </Button>
             <Button
               variant="outline"
-              size="icon-sm"
+              size="icon-lg"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -662,7 +762,7 @@ export function GastosDataTable({ gastos, pagos, categorias, usuarios, mostrarTi
             </Button>
             <Button
               variant="outline"
-              size="icon-sm"
+              size="icon-lg"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >

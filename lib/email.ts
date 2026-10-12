@@ -4,6 +4,8 @@ import { NuevoGastoEmail } from '@/emails/nuevo-gasto'
 import { CuotaPagadaEmail } from '@/emails/cuota-pagada'
 import { GastoCanceladoEmail } from '@/emails/gasto-cancelado'
 import { RecordatorioEmail } from '@/emails/recordatorio'
+import { RecordatorioCargaEmail } from '@/emails/recordatorio-carga'
+import { InversionAlertaEmail, type AlertaEmail } from '@/emails/inversion-alerta'
 import { Gasto, Pago, ProximoVencimiento } from './types'
 import { AppUser } from './users'
 
@@ -20,7 +22,7 @@ export async function enviarEmailNuevoGasto(
   primerPago: Pago | undefined
 ) {
   const html = await render(
-    NuevoGastoEmail({ destinatario, autor, gasto, primerPago }) as any
+    NuevoGastoEmail({ destinatario, autor, gasto, primerPago })
   )
   await getResend().emails.send({
     from: FROM,
@@ -37,7 +39,7 @@ export async function enviarEmailCuotaPagada(
   pago: Pago
 ) {
   const html = await render(
-    CuotaPagadaEmail({ destinatario, autor, gasto, pago }) as any
+    CuotaPagadaEmail({ destinatario, autor, gasto, pago })
   )
   await getResend().emails.send({
     from: FROM,
@@ -53,7 +55,7 @@ export async function enviarEmailGastoCancelado(
   gasto: Gasto
 ) {
   const html = await render(
-    GastoCanceladoEmail({ destinatario, autor, gasto }) as any
+    GastoCanceladoEmail({ destinatario, autor, gasto })
   )
   await getResend().emails.send({
     from: FROM,
@@ -68,12 +70,32 @@ export async function enviarEmailRecordatorio(
   vencimientos: ProximoVencimiento[]
 ) {
   const html = await render(
-    RecordatorioEmail({ destinatario, vencimientos }) as any
+    RecordatorioEmail({ destinatario, vencimientos })
   )
   await getResend().emails.send({
     from: FROM,
     to: destinatario.email,
     subject: `⏰ Recordatorio: ${vencimientos.length} cuota(s) vencen esta semana`,
+    html,
+  })
+}
+
+export async function enviarEmailRecordatorioCarga(destinatario: AppUser, url: string) {
+  const html = await render(RecordatorioCargaEmail({ destinatario, url }))
+  await getResend().emails.send({
+    from: FROM,
+    to: destinatario.email,
+    subject: '📝 ¿Gastaste algo hoy? Todavía no cargaste nada',
+    html,
+  })
+}
+
+export async function enviarEmailInversionAlerta(destinatario: AppUser, alertas: AlertaEmail[]) {
+  const html = await render(InversionAlertaEmail({ destinatario, alertas }))
+  await getResend().emails.send({
+    from: FROM,
+    to: destinatario.email,
+    subject: `📈 ${alertas[0]?.titulo || 'Alerta de inversión'}`,
     html,
   })
 }
