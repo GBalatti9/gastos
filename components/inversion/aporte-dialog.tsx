@@ -43,7 +43,7 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
   const [loading, setLoading] = useState(false)
   const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD')
   const [monto, setMonto] = useState(prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '')
-  const [tcInput, setTcInput] = useState(tc > 0 ? String(Math.round(tc)) : '')
+  const [tcInput, setTcInput] = useState('')
   const [posicionId, setPosicionId] = useState(destino?.posicion.id || activas[0]?.id || '')
   const [fecha, setFecha] = useState(hoyAR())
   const [unidadesInput, setUnidadesInput] = useState('')
@@ -139,7 +139,8 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
                 value={posicionId}
                 onChange={(v) => { setPosicionId(v); setUnidadesInput('') }}
                 opciones={activas.map((p) => ({ value: p.id, label: p.ticker || p.nombre }))}
-                layout="wrap"
+                layout="chips"
+                itemClassName="px-3"
               />
             )}
             {posicion && (
@@ -156,41 +157,40 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
             )}
           </Field>
 
+          <div className="grid grid-cols-2 gap-3 *:min-w-0">
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="aporte-fecha">Fecha</FieldLabel>
+              <Input id="aporte-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-11 w-full min-w-0 text-base md:h-9 md:text-sm" />
+            </Field>
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="aporte-tc">Dólar</FieldLabel>
+              <Input id="aporte-tc" inputMode="decimal" placeholder={tc > 0 ? `ref. CCL ${Math.round(tc)}` : 'ej. 1450'} value={tcInput} onChange={(e) => setTcInput(e.target.value)} className="h-11 w-full min-w-0 text-base tabular-nums md:h-9 md:text-sm" />
+            </Field>
+          </div>
+          <FieldDescription className="-mt-2">Cargá el dólar al que realmente compraste. El CCL de referencia es solo orientativo.</FieldDescription>
+
           {muestraUnidades && (
-            <Field orientation="horizontal">
-              <div className="flex-1">
-                <FieldLabel htmlFor="aporte-unidades">Cantidad{unidadLabel ? ` (${unidadLabel})` : ''}</FieldLabel>
-                <FieldDescription>
-                  {precio
-                    ? `Cotiza ${precio.moneda === 'USD' ? fmtUSD(precio.precio, 2) : fmtARS(precio.precio)}${precio.cada100 ? ' cada 100' : ''} · ${precio.fuente}. Si lo dejás vacío: ≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 4 })}.`
-                    : 'Opcional. Sin precio automático: anotá cuántas compraste si querés llevarlo.'}
-                </FieldDescription>
-              </div>
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="aporte-unidades">Cantidad{unidadLabel ? ` de ${unidadLabel}` : ''} (opcional)</FieldLabel>
               <Input
                 id="aporte-unidades"
                 inputMode="decimal"
-                placeholder={unidadesAuto > 0 ? unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 4 }) : '—'}
+                placeholder={unidadesAuto > 0 ? `≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 2 })} con el precio de hoy` : 'Cuántas compraste'}
                 value={unidadesInput}
                 onChange={(e) => setUnidadesInput(e.target.value)}
-                className="w-32 text-right text-base tabular-nums md:text-sm"
+                className="h-11 w-full min-w-0 text-base tabular-nums md:h-9 md:text-sm"
               />
+              <FieldDescription>
+                {precio
+                  ? `Cotiza ${precio.moneda === 'USD' ? fmtUSD(precio.precio, 2) : fmtARS(precio.precio)}${precio.cada100 ? ' cada 100' : ''} (${precio.fuente}). Si lo dejás vacío se calcula con ese precio y el dólar que cargues.`
+                  : 'Sin precio automático: anotá cuántas compraste si querés llevarlo.'}
+              </FieldDescription>
             </Field>
           )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel htmlFor="aporte-fecha">Fecha</FieldLabel>
-              <Input id="aporte-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-11 text-base md:h-9 md:text-sm" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="aporte-tc">Dólar CCL</FieldLabel>
-              <Input id="aporte-tc" inputMode="decimal" value={tcInput} onChange={(e) => setTcInput(e.target.value)} className="h-11 text-base tabular-nums md:h-9 md:text-sm" />
-            </Field>
-          </div>
         </FieldGroup>
 
         <div className="sticky bottom-0 -mx-1 bg-gradient-to-t from-popover via-popover/95 to-transparent px-1 pt-3">
-          <Button type="submit" size="lg" className="h-12 w-full" disabled={loading || montoUsd <= 0 || !posicionId}>
+          <Button type="submit" size="lg" className="h-12 w-full" disabled={loading || montoUsd <= 0 || !posicionId || tcNum <= 0}>
             {loading && <Spinner data-icon="inline-start" />}
             Confirmar aporte{montoUsd > 0 ? ` de ${fmtUSD(montoUsd)}` : ''}
           </Button>

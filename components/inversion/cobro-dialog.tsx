@@ -37,7 +37,7 @@ export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc,
   const [monto, setMonto] = useState('')
   const [tipo, setTipo] = useState<'base' | 'extra'>('base')
   const [fecha, setFecha] = useState(hoyAR())
-  const [tcInput, setTcInput] = useState(tc > 0 ? String(Math.round(tc)) : '')
+  const [tcInput, setTcInput] = useState('')
 
   const montoNum = parseMonto(monto)
   const tcNum = parseMonto(tcInput)
@@ -57,7 +57,7 @@ export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc,
     setMonto('')
     setTipo('base')
     setFecha(hoyAR())
-    setTcInput(tc > 0 ? String(Math.round(tc)) : '')
+    setTcInput('')
   }
 
   async function guardar(registrarAporte: boolean) {
@@ -131,20 +131,21 @@ export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc,
             />
             <FieldDescription>
               {tipo === 'base'
-                ? `Base: ${fmtUSD(metaActual.aporte_base_usd)} al dólar del día. Lo que supere ${fmtARS(metaActual.ingreso_base_ars)} se invierte al ${metaActual.pct_extra} %.`
+                ? `Base: ${fmtUSD(metaActual.aporte_base_usd)} al dólar que cargues. Lo que supere tu ingreso base se invierte al ${metaActual.pct_extra} %.`
                 : `Un extra se invierte al ${metaActual.pct_extra} %.`}
             </FieldDescription>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
+          <div className="grid grid-cols-2 gap-3 *:min-w-0">
+            <Field className="min-w-0">
               <FieldLabel htmlFor="cobro-fecha">Fecha</FieldLabel>
-              <Input id="cobro-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-11 text-base md:h-9 md:text-sm" />
+              <Input id="cobro-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-11 w-full min-w-0 text-base md:h-9 md:text-sm" />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="cobro-tc">Dólar CCL</FieldLabel>
-              <Input id="cobro-tc" inputMode="decimal" value={tcInput} onChange={(e) => setTcInput(e.target.value)} className="h-11 text-base tabular-nums md:h-9 md:text-sm" />
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="cobro-tc">Dólar</FieldLabel>
+              <Input id="cobro-tc" inputMode="decimal" placeholder={tc > 0 ? `ref. CCL ${Math.round(tc)}` : 'ej. 1450'} value={tcInput} onChange={(e) => setTcInput(e.target.value)} className="h-11 w-full min-w-0 text-base tabular-nums md:h-9 md:text-sm" />
             </Field>
           </div>
+          <FieldDescription className="-mt-2">Cargá el dólar al que realmente comprás. El CCL de referencia es solo orientativo.</FieldDescription>
         </FieldGroup>
 
         <div className="rounded-xl border bg-muted/30 p-4">
@@ -168,7 +169,7 @@ export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc,
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Ingresá el monto para ver cuánto te toca.</p>
+            <p className="text-sm text-muted-foreground">{montoNum > 0 && tcNum <= 0 ? 'Cargá el dólar para ver cuánto te toca.' : 'Ingresá el monto para ver cuánto te toca.'}</p>
           )}
         </div>
 

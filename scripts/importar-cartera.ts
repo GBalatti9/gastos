@@ -56,7 +56,7 @@ async function main() {
   // ── Meta ────────────────────────────────────────────────────────────────
   await gs.asegurarHojas(gs.HOJAS_INVERSION)
   const metas = await gs.getInvMetas(email)
-  let meta = opt('meta') ? metas.find(m => m.id === opt('meta')) : metas[0]
+  const meta = opt('meta') ? metas.find(m => m.id === opt('meta')) : metas[0]
   if (!meta) {
     throw new Error('No hay ninguna meta. Creala primero desde la app (/inversion → Configurar mi meta) y volvé a correr el import.')
   } else {

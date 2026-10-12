@@ -53,13 +53,71 @@ interface Props {
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR')}`
 const mesLabel = (mes: string) => format(primerDiaDelMes(mes), 'MMM yyyy', { locale: es })
 
-export function PromedioCard({ titulo, monto, detalle, meses, columnas, filas, descripcion }: Props) {
-  const [open, setOpen] = useState(false)
+export function PromedioDialog({
+  open, onOpenChange, titulo, meses, columnas, filas, descripcion,
+}: Pick<Props, 'titulo' | 'meses' | 'columnas' | 'filas' | 'descripcion'> & { open: boolean; onOpenChange: (o: boolean) => void }) {
   const n = meses.length
-
   const promedios = columnas.map((_, i) =>
     n === 0 ? 0 : filas.reduce((s, f) => s + (f.valores[i] ?? 0), 0) / n
   )
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{titulo}</DialogTitle>
+          <DialogDescription>
+            {descripcion ??
+              'Promedio sobre meses completos (el mes en curso no cuenta). Cada cuota se asigna al mes de su vencimiento. Las liquidaciones de deuda no cuentan.'}
+          </DialogDescription>
+        </DialogHeader>
+        {filas.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Todavía no hay meses completos para promediar.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table className="min-w-[420px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mes</TableHead>
+                  {columnas.map((c) => (
+                    <TableHead key={c} className="text-right">
+                      {c}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...filas].reverse().map((f) => (
+                  <TableRow key={f.mes}>
+                    <TableCell className="font-medium capitalize">{mesLabel(f.mes)}</TableCell>
+                    {f.valores.map((v, i) => (
+                      <TableCell key={i} className="text-right tabular-nums">
+                        {ars(v)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/50 font-semibold">
+                  <TableCell>Promedio</TableCell>
+                  {promedios.map((v, i) => (
+                    <TableCell key={i} className="text-right tabular-nums">
+                      {ars(v)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function PromedioCard({ titulo, monto, detalle, meses, columnas, filas, descripcion }: Props) {
+  const [open, setOpen] = useState(false)
+  const n = meses.length
 
   return (
     <>
@@ -84,57 +142,7 @@ export function PromedioCard({ titulo, monto, detalle, meses, columnas, filas, d
         )}
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{titulo}</DialogTitle>
-            <DialogDescription>
-              {descripcion ??
-                'Promedio sobre meses completos (el mes en curso no cuenta). Cada cuota se asigna al mes de su vencimiento. Las liquidaciones de deuda no cuentan.'}
-            </DialogDescription>
-          </DialogHeader>
-          {filas.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Todavía no hay meses completos para promediar.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="min-w-[420px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Mes</TableHead>
-                    {columnas.map((c) => (
-                      <TableHead key={c} className="text-right">
-                        {c}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[...filas].reverse().map((f) => (
-                    <TableRow key={f.mes}>
-                      <TableCell className="font-medium capitalize">{mesLabel(f.mes)}</TableCell>
-                      {f.valores.map((v, i) => (
-                        <TableCell key={i} className="text-right tabular-nums">
-                          {ars(v)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell>Promedio</TableCell>
-                    {promedios.map((v, i) => (
-                      <TableCell key={i} className="text-right tabular-nums">
-                        {ars(v)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PromedioDialog open={open} onOpenChange={setOpen} titulo={titulo} meses={meses} columnas={columnas} filas={filas} descripcion={descripcion} />
     </>
   )
 }
