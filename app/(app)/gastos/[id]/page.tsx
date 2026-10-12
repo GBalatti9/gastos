@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { GastoDetalle } from '@/components/gastos/gasto-detalle'
 import { getUserByEmail, getOtherUser } from '@/lib/users'
 
-export const revalidate = 0
+export const dynamic = 'force-dynamic'
 
 export default async function GastoDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

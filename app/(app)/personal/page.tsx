@@ -10,7 +10,10 @@ import { cuentaComoGasto, esLiquidacion, esPersonal } from '@/lib/gastos-utils'
 import { mesActualAR, mesAnterior } from '@/lib/dates'
 import { Pago } from '@/lib/types'
 
-export const revalidate = 60
+// Sin `revalidate`: la página ya es dinámica por auth() y, con Node 24, el
+// cache de fetch de Next rompe las llamadas a Google Sheets ("ArrayBuffer is
+// not detachable"). Los datos se leen frescos en cada request.
+export const dynamic = 'force-dynamic'
 
 export default async function PersonalPage() {
   const session = await auth()
