@@ -147,12 +147,10 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
     )
   }
 
-  const sinPosiciones = datos.posiciones.filter((p) => p.activo).length === 0
-
   return (
     <div className="flex flex-col gap-4">
       {/* Selector de meta */}
-      {(metas.length > 1 || true) && (
+      {(
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 overflow-x-auto">
             <OpcionesToggle
@@ -175,20 +173,6 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
         </div>
       )}
 
-      {sinPosiciones && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyTitle>Armá la cartera de {meta.nombre}</EmptyTitle>
-            <EmptyDescription>
-              Cargá tus instrumentos con su peso objetivo y su rol (core, satélite o seguro). Sin posiciones no hay adónde aportar.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => { bump(); setPosicionesOpen(true) }}>Agregar posiciones</Button>
-          </EmptyContent>
-        </Empty>
-      )}
-
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <div className="overflow-x-auto">
           <TabsList className="w-max">
@@ -205,9 +189,11 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
             meta={meta}
             resumen={resumen}
             tc={datos.tc}
+            mesActual={datos.mesActual}
             onCobro={() => { bump(); setCobroOpen(true) }}
             onAporte={() => abrirAporte()}
             onValuar={() => { bump(); setValuacionesOpen(true) }}
+            onPosiciones={() => { bump(); setPosicionesOpen(true) }}
           />
         </TabsContent>
         <TabsContent value="cartera">
