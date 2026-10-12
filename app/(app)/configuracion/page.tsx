@@ -4,6 +4,7 @@ import { getUserByEmail, getOtherUser } from '@/lib/users'
 import { TarjetasConfig } from '@/components/configuracion/tarjetas-config'
 import { CuentaCard } from '@/components/configuracion/cuenta-card'
 import { InstallCard } from '@/components/pwa/install-card'
+import { NotificacionesConfig } from '@/components/configuracion/notificaciones-config'
 
 export default async function ConfiguracionPage() {
   const session = await auth()
@@ -17,6 +18,7 @@ export default async function ConfiguracionPage() {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       <InstallCard />
+      <NotificacionesConfig />
 
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-medium text-foreground">Tarjetas de crédito</h2>

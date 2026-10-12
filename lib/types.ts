@@ -19,6 +19,17 @@ export interface Gasto {
   recurrente: boolean
   metodo_pago: MetodoPago
   tarjeta_id: string
+  /** Email de quien cargó el gasto (columna Q, puede faltar en filas viejas). */
+  creado_por?: string
+}
+
+export interface PushSub {
+  email: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent: string
+  created_at: string
 }
 
 export interface Pago {

@@ -4,6 +4,7 @@ import { NuevoGastoEmail } from '@/emails/nuevo-gasto'
 import { CuotaPagadaEmail } from '@/emails/cuota-pagada'
 import { GastoCanceladoEmail } from '@/emails/gasto-cancelado'
 import { RecordatorioEmail } from '@/emails/recordatorio'
+import { RecordatorioCargaEmail } from '@/emails/recordatorio-carga'
 import { Gasto, Pago, ProximoVencimiento } from './types'
 import { AppUser } from './users'
 
@@ -74,6 +75,16 @@ export async function enviarEmailRecordatorio(
     from: FROM,
     to: destinatario.email,
     subject: `⏰ Recordatorio: ${vencimientos.length} cuota(s) vencen esta semana`,
+    html,
+  })
+}
+
+export async function enviarEmailRecordatorioCarga(destinatario: AppUser, url: string) {
+  const html = await render(RecordatorioCargaEmail({ destinatario, url }))
+  await getResend().emails.send({
+    from: FROM,
+    to: destinatario.email,
+    subject: '📝 ¿Gastaste algo hoy? Todavía no cargaste nada',
     html,
   })
 }

@@ -41,10 +41,11 @@
 
 ### 2.2 Crear las hojas con los headers
 
-**Hoja "gastos"** — Fila 1 con estas columnas:
+**Hoja "gastos"** — Fila 1 con estas columnas (A → Q):
 ```
-id | descripcion | monto_total | pagado_por | cuotas | cuota_actual | fecha_inicio | dia_vencimiento | categoria | notas | estado
+id | descripcion | monto_total | pagado_por | cuotas | cuota_actual | fecha_inicio | categoria | notas | estado | moneda | tipo_division | division_valor | recurrente | metodo_pago | tarjeta_id | creado_por
 ```
+> `creado_por` (columna Q) es nueva: guarda el email de quien cargó el gasto y la usa el recordatorio de carga. Las filas viejas pueden quedar vacías.
 
 **Hoja "pagos"** — Fila 1:
 ```
@@ -54,6 +55,21 @@ id | gasto_id | numero_cuota | monto | fecha_vencimiento | fecha_pago | pagado_p
 **Hoja "categorias"** — Fila 1:
 ```
 id | nombre | color | icono
+```
+
+**Hoja "tarjetas"** — Fila 1:
+```
+id | nombre | ultimos_4 | fecha_cierre | fecha_vencimiento | owner_email
+```
+
+**Hoja "tipo_cambio"** — Fila 1:
+```
+fecha | valor | fuente
+```
+
+**Hoja "push_subs"** — Fila 1 (suscripciones de notificaciones push, una por dispositivo):
+```
+email | endpoint | p256dh | auth | user_agent | created_at
 ```
 
 > **Tip:** La primera vez que cargues `/api/categorias`, la app crea automáticamente las categorías por defecto si la hoja está vacía.
@@ -115,7 +131,14 @@ USER_2_EMAIL=pareja@gmail.com
 
 # Cron (solo producción)
 CRON_SECRET=   # generalo con: openssl rand -base64 32
+
+# Notificaciones push (PWA). Generalas con: npx web-push generate-vapid-keys
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:vos@gmail.com
 ```
+
+Sin las claves VAPID la app funciona igual: los recordatorios de carga caen a email.
 
 **Importante con `GOOGLE_PRIVATE_KEY`:** La clave tiene saltos de línea. Cuando la copies del JSON, los `\n` deben quedar como `\n` literales dentro de las comillas dobles, NO como saltos de línea reales.
 
@@ -147,14 +170,24 @@ git push -u origin main
 2. Agregar todas las variables de entorno (las mismas del `.env.local`, pero con `NEXTAUTH_URL=https://tu-app.vercel.app`)
 3. Deploy
 
-### 7.3 Cron job
-El archivo `vercel.json` ya tiene configurado el cron para ejecutarse todos los días a las 9am UTC (6am Argentina):
-```json
-{
-  "crons": [{ "path": "/api/cron/recordatorios", "schedule": "0 12 * * *" }]
-}
+### 7.3 Cron jobs
+`vercel.json` define cuatro crons (horarios en UTC; Argentina es UTC-3). Vercel los llama con el header `Authorization: Bearer $CRON_SECRET`.
+
+| Path | Horario | Qué hace |
+|---|---|---|
+| `/api/cron/auto-pagar` | 08:00 UTC (05:00 ART) | Marca pagadas las cuotas vencidas |
+| `/api/cron/recurrentes` | 09:00 UTC (06:00 ART) | Genera las cuotas del mes actual y el siguiente de los gastos recurrentes (idempotente) |
+| `/api/cron/recordatorios` | 12:00 UTC (09:00 ART) | Email con las cuotas que vencen en 7 días |
+| `/api/cron/recordatorio-carga` | 00:00 UTC (21:00 ART) | Si ese día no cargaste ningún gasto: push al celular, o email si no tenés push |
+
+### 7.4 Instalar en el celular (PWA)
+Abrí la app en el navegador del teléfono → Ajustes → "Instalar en el celular". En iPhone es Safari → Compartir → Agregar a inicio. Una vez instalada, activá "Recordatorios" en Ajustes para recibir las notificaciones push.
+
+## Scripts útiles
+```bash
+npm test             # tests de la lógica de saldo y métricas
+npm run promedios    # tabla mes a mes + promedio mensual pareja/individual (lee la planilla con .env.local)
 ```
-Vercel llama automáticamente a ese endpoint con el header `Authorization: Bearer $CRON_SECRET`.
 
 ---
 

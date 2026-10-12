@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { Gasto, Pago, Categoria, Moneda, TipoDivision, TipoCambio, MetodoPago, TarjetaCredito } from './types'
+import { Gasto, Pago, Categoria, Moneda, TipoDivision, TipoCambio, MetodoPago, TarjetaCredito, PushSub } from './types'
 
 function getAuth() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n')
@@ -25,7 +25,7 @@ export async function getGastos(): Promise<Gasto[]> {
   const sheets = getSheets()
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A2:P',
+    range: 'gastos!A2:Q',
   })
   const rows = res.data.values || []
   return rows.map(rowToGasto).filter(Boolean) as Gasto[]
@@ -57,11 +57,12 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
     data.recurrente ? 'si' : 'no',
     data.metodo_pago || 'efectivo',
     data.tarjeta_id || '',
+    data.creado_por || '',
   ]
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:P',
+    range: 'gastos!A:Q',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
@@ -412,6 +413,74 @@ export async function deleteTarjeta(id: string): Promise<void> {
   })
 }
 
+// ─── Push subscriptions ───────────────────────────────────────────────────────
+// Hoja "push_subs": email | endpoint | p256dh | auth | user_agent | created_at
+
+export async function getPushSubs(): Promise<PushSub[]> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'push_subs!A2:F',
+  })
+  const rows = res.data.values || []
+  return rows
+    .filter(r => r[0] && r[1])
+    .map(r => ({
+      email: r[0],
+      endpoint: r[1],
+      p256dh: r[2] || '',
+      auth: r[3] || '',
+      user_agent: r[4] || '',
+      created_at: r[5] || '',
+    }))
+}
+
+/** Upsert por endpoint (un dispositivo = una fila). */
+export async function savePushSub(sub: PushSub): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'push_subs!A:F',
+  })
+  const rows = res.data.values || []
+  const row = [sub.email, sub.endpoint, sub.p256dh, sub.auth, sub.user_agent, sub.created_at]
+  const rowIndex = rows.findIndex(r => r[1] === sub.endpoint)
+
+  if (rowIndex === -1) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'push_subs!A:F',
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    })
+    return
+  }
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `push_subs!A${rowIndex + 1}:F${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [row] },
+  })
+}
+
+export async function deletePushSub(endpoint: string): Promise<void> {
+  const sheets = getSheets()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'push_subs!B:B',
+  })
+  const rows = res.data.values || []
+  const rowIndex = rows.findIndex(r => r[0] === endpoint)
+  if (rowIndex === -1) return
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `push_subs!A${rowIndex + 1}:F${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [['', '', '', '', '', '']] },
+  })
+}
+
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function rowToGasto(row: string[]): Gasto | null {
@@ -433,6 +502,7 @@ function rowToGasto(row: string[]): Gasto | null {
     recurrente: row[13] === 'si',
     metodo_pago: (row[14] as MetodoPago) || 'efectivo',
     tarjeta_id: row[15] || '',
+    creado_por: row[16] || '',
   }
 }
 
