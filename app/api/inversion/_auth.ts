@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { asegurarHojas, HOJAS_INVERSION } from '@/lib/google-sheets'
 
 /** Email de la sesión o una respuesta 401 lista para devolver. */
 export async function emailDeSesion(): Promise<{ email: string } | { error: NextResponse }> {
   const session = await auth()
   const email = session?.user?.email
   if (!email) return { error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) }
+  await asegurarHojas(HOJAS_INVERSION)
   return { email }
 }
 

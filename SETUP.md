@@ -67,12 +67,12 @@ id | nombre | ultimos_4 | fecha_cierre | fecha_vencimiento | owner_email
 fecha | valor | fuente
 ```
 
-**Hoja "push_subs"** — Fila 1 (suscripciones de notificaciones push, una por dispositivo):
+**Hoja "push_subs"** — se crea sola al activar los recordatorios. Fila 1 (una suscripción por dispositivo):
 ```
 email | endpoint | p256dh | auth | user_agent | created_at
 ```
 
-**Módulo de inversión** — 5 hojas, todas con `email` (cada usuario ve solo lo suyo):
+**Módulo de inversión** — 5 hojas, todas con `email` (cada usuario ve solo lo suyo). **Se crean solas** la primera vez que entrás a `/inversion`; esto es solo de referencia:
 ```
 inv_metas:       email | monto_objetivo_usd | fecha_objetivo | aporte_base_usd | ingreso_base_ars | pct_extra | fecha_inicio | desriesgo_etapas
 inv_cobros:      id | email | fecha | monto_ars | tipo | tipo_cambio | notas

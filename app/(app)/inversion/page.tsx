@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import {
   getInvMeta, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones,
+  asegurarHojas, HOJAS_INVERSION,
 } from '@/lib/google-sheets'
 import { getTipoCambioHoy } from '@/lib/tipo-cambio'
 import { hoyAR, mesActualAR, mesAnterior } from '@/lib/dates'
@@ -15,6 +16,9 @@ export const dynamic = 'force-dynamic'
 export default async function InversionPage() {
   const session = await auth()
   const email = session?.user?.email || ''
+
+  // Primera vez: crea las hojas inv_* en la planilla si no existen
+  await asegurarHojas(HOJAS_INVERSION)
 
   const [meta, cobros, aportes, posiciones, valuaciones, tc] = await Promise.all([
     getInvMeta(email),

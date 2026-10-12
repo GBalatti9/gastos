@@ -1,5 +1,5 @@
 import webpush from 'web-push'
-import { getPushSubs, deletePushSub } from './google-sheets'
+import { getPushSubs, deletePushSub, asegurarHojas, HOJA_PUSH_SUBS } from './google-sheets'
 
 export interface PushPayload {
   title: string
@@ -31,6 +31,7 @@ export function pushConfigurado(): boolean {
  */
 export async function enviarPush(email: string, payload: PushPayload): Promise<number> {
   if (!configurar()) return 0
+  await asegurarHojas(HOJA_PUSH_SUBS)
   const subs = (await getPushSubs()).filter(s => s.email === email)
   if (subs.length === 0) return 0
 

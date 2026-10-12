@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getGastos, getPushSubs } from '@/lib/google-sheets'
+import { getGastos, getPushSubs, asegurarHojas, HOJA_PUSH_SUBS } from '@/lib/google-sheets'
 import { enviarPush } from '@/lib/push'
 import { enviarEmailRecordatorioCarga } from '@/lib/email'
 import { getUsers } from '@/lib/users'
@@ -19,6 +19,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  await asegurarHojas(HOJA_PUSH_SUBS)
   const [gastos, subs] = await Promise.all([getGastos(), getPushSubs()])
   const hoy = hoyAR()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://localhost:3000'

@@ -681,3 +681,50 @@ export async function createInvValuaciones(datos: Omit<InvValuacion, 'id'>[]): P
   let next = Date.now()
   await agregarFilas('inv_valuaciones!A:E', datos.map(v => [String(next++), v.email, v.fecha, v.posicion_id, v.valor_usd]))
 }
+
+// ─── Hojas: crear las que falten ──────────────────────────────────────────────
+
+export const HOJAS_INVERSION: Record<string, string[]> = {
+  inv_metas: ['email', 'monto_objetivo_usd', 'fecha_objetivo', 'aporte_base_usd', 'ingreso_base_ars', 'pct_extra', 'fecha_inicio', 'desriesgo_etapas'],
+  inv_cobros: ['id', 'email', 'fecha', 'monto_ars', 'tipo', 'tipo_cambio', 'notas'],
+  inv_aportes: ['id', 'email', 'fecha', 'monto_usd', 'monto_ars', 'tipo_cambio', 'posicion_id', 'cobro_id', 'notas'],
+  inv_posiciones: ['id', 'email', 'ticker', 'nombre', 'peso_objetivo', 'rol', 'activo'],
+  inv_valuaciones: ['id', 'email', 'fecha', 'posicion_id', 'valor_usd'],
+}
+
+export const HOJA_PUSH_SUBS: Record<string, string[]> = {
+  push_subs: ['email', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at'],
+}
+
+// Evita repetir la verificación en cada request del mismo proceso
+const hojasVerificadas = new Set<string>()
+
+/**
+ * Crea en la planilla las hojas que falten, con su fila de headers.
+ * Idempotente y barata (una lectura de metadatos por proceso).
+ */
+export async function asegurarHojas(hojas: Record<string, string[]>): Promise<string[]> {
+  const pendientes = Object.keys(hojas).filter(h => !hojasVerificadas.has(h))
+  if (pendientes.length === 0) return []
+
+  const sheets = getSheets()
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: 'sheets.properties.title' })
+  const existentes = new Set((meta.data.sheets || []).map(s => s.properties?.title || ''))
+  const faltantes = pendientes.filter(h => !existentes.has(h))
+
+  if (faltantes.length > 0) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { requests: faltantes.map(title => ({ addSheet: { properties: { title } } })) },
+    })
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        valueInputOption: 'RAW',
+        data: faltantes.map(h => ({ range: `${h}!A1`, values: [hojas[h]] })),
+      },
+    })
+  }
+  for (const h of pendientes) hojasVerificadas.add(h)
+  return faltantes
+}

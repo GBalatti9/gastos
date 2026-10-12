@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
-  getInvMeta, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones, getPushSubs,
+  getInvMeta, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones, getPushSubs, asegurarHojas, HOJA_PUSH_SUBS, HOJAS_INVERSION,
 } from '@/lib/google-sheets'
 import { getTipoCambioHoy } from '@/lib/tipo-cambio'
 import { alertas } from '@/lib/inversion'
@@ -22,6 +22,7 @@ export async function GET(req: Request) {
   }
 
   const hoy = hoyAR()
+  await asegurarHojas({ ...HOJAS_INVERSION, ...HOJA_PUSH_SUBS })
   const [tc, subs] = await Promise.all([getTipoCambioHoy(), getPushSubs()])
   const baseUrl = (process.env.NEXTAUTH_URL || 'https://localhost:3000').replace(/\/$/, '')
   const resultado: Record<string, string> = {}
