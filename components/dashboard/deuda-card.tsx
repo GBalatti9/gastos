@@ -62,9 +62,9 @@ export function DeudaCard({ saldoARS, saldoUSD, usuarioEmail }: Props) {
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           <Dialog>
-            <DialogTrigger render={<Button variant="outline" size="lg" />}>
+            <DialogTrigger render={<Button variant="outline" size="lg" className="w-full sm:w-auto" />}>
               Ver detalle
             </DialogTrigger>
             <DialogContent>
