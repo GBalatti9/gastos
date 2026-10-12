@@ -205,8 +205,9 @@ Abrí la app en el navegador del teléfono → Ajustes → "Instalar en el celul
 
 ## Scripts útiles
 ```bash
-npm test             # tests de la lógica de saldo y métricas
-npm run promedios    # tabla mes a mes + promedio mensual pareja/individual (lee la planilla con .env.local)
+npm test                                   # tests de la lógica de saldo, métricas e inversión
+npm run promedios                          # tabla mes a mes + promedio mensual pareja/individual
+npm run importar-cartera -- archivo.csv    # importa una cartera (Ticker, Tipo, Cedears, Invertido USD, Objetivo %) como saldo inicial de inversión; --dry para ver sin escribir
 ```
 
 ---

@@ -19,15 +19,25 @@ function getSheets() {
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID!
 
+/**
+ * Lee celdas como texto SIN el formato de la planilla: con locale es-AR,
+ * `values.get` por defecto devuelve "1896,75" y parseFloat se queda en 1896.
+ * UNFORMATTED_VALUE devuelve el número crudo; lo pasamos a string con punto.
+ */
+async function leerFilas(range: string): Promise<string[][]> {
+  const res = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+  })
+  return ((res.data.values || []) as unknown[][]).map(r => r.map(c => (c === null || c === undefined ? '' : String(c))))
+}
+
+
 // ─── Gastos ───────────────────────────────────────────────────────────────────
 
 export async function getGastos(): Promise<Gasto[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A2:Q',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('gastos!A2:Q')
   return rows.map(rowToGasto).filter(Boolean) as Gasto[]
 }
 
@@ -73,11 +83,7 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
 
 export async function updateGasto(id: string, data: Partial<Omit<Gasto, 'id' | 'estado' | 'cuota_actual'>>): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:Q',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('gastos!A:Q')
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Gasto ${id} no encontrado`)
 
@@ -111,11 +117,7 @@ export async function updateGasto(id: string, data: Partial<Omit<Gasto, 'id' | '
 
 export async function updatePago(id: string, data: { monto?: number; fecha_vencimiento?: string }): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'pagos!A:H',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('pagos!A:H')
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Pago ${id} no encontrado`)
 
@@ -137,11 +139,7 @@ export async function updatePago(id: string, data: { monto?: number; fecha_venci
 
 export async function updateGastoEstado(id: string, estado: 'activo' | 'cancelado'): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:A',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('gastos!A:A')
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Gasto ${id} no encontrado`)
 
@@ -158,12 +156,7 @@ export async function updateGastoEstado(id: string, estado: 'activo' | 'cancelad
 // ─── Pagos ────────────────────────────────────────────────────────────────────
 
 export async function getPagos(): Promise<Pago[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'pagos!A2:H',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('pagos!A2:H')
   return rows.map(rowToPago).filter(Boolean) as Pago[]
 }
 
@@ -203,11 +196,7 @@ export async function marcarPagoComoPagado(
   fechaPago: string
 ): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'pagos!A:A',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('pagos!A:A')
   const rowIndex = rows.findIndex(r => r[0] === pagoId)
   if (rowIndex === -1) throw new Error(`Pago ${pagoId} no encontrado`)
 
@@ -229,12 +218,7 @@ export async function marcarPagoComoPagado(
 // ─── Categorias ───────────────────────────────────────────────────────────────
 
 export async function getCategorias(): Promise<Categoria[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'categorias!A2:D',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('categorias!A2:D')
   return rows.map(r => ({
     id: r[0] || '',
     nombre: r[1] || '',
@@ -289,12 +273,7 @@ export async function createCategoria(data: Omit<Categoria, 'id'>): Promise<Cate
 // ─── Tipo de Cambio ───────────────────────────────────────────────────────────
 
 export async function getTipoCambios(): Promise<TipoCambio[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tipo_cambio!A2:C',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('tipo_cambio!A2:C')
   return rows.map(r => ({
     fecha: r[0] || '',
     valor: parseFloat(r[1]) || 0,
@@ -327,12 +306,7 @@ export async function saveTipoCambio(fecha: string, valor: number, fuente: 'bna'
 // ─── Tarjetas de Crédito ──────────────────────────────────────────────────────
 
 export async function getTarjetas(): Promise<TarjetaCredito[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tarjetas!A2:F',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('tarjetas!A2:F')
   return rows.map(rowToTarjeta).filter(Boolean) as TarjetaCredito[]
 }
 
@@ -369,11 +343,7 @@ export async function createTarjeta(data: Omit<TarjetaCredito, 'id'>): Promise<T
 
 export async function updateTarjeta(id: string, data: Partial<Omit<TarjetaCredito, 'id'>>): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tarjetas!A:F',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('tarjetas!A:F')
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Tarjeta ${id} no encontrada`)
 
@@ -397,11 +367,7 @@ export async function updateTarjeta(id: string, data: Partial<Omit<TarjetaCredit
 
 export async function deleteTarjeta(id: string): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tarjetas!A:A',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('tarjetas!A:A')
   const rowIndex = rows.findIndex(r => r[0] === id)
   if (rowIndex === -1) throw new Error(`Tarjeta ${id} no encontrada`)
 
@@ -417,12 +383,7 @@ export async function deleteTarjeta(id: string): Promise<void> {
 // Hoja "push_subs": email | endpoint | p256dh | auth | user_agent | created_at
 
 export async function getPushSubs(): Promise<PushSub[]> {
-  const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'push_subs!A2:F',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('push_subs!A2:F')
   return rows
     .filter(r => r[0] && r[1])
     .map(r => ({
@@ -438,11 +399,7 @@ export async function getPushSubs(): Promise<PushSub[]> {
 /** Upsert por endpoint (un dispositivo = una fila). */
 export async function savePushSub(sub: PushSub): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'push_subs!A:F',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('push_subs!A:F')
   const row = [sub.email, sub.endpoint, sub.p256dh, sub.auth, sub.user_agent, sub.created_at]
   const rowIndex = rows.findIndex(r => r[1] === sub.endpoint)
 
@@ -466,11 +423,7 @@ export async function savePushSub(sub: PushSub): Promise<void> {
 
 export async function deletePushSub(endpoint: string): Promise<void> {
   const sheets = getSheets()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'push_subs!B:B',
-  })
-  const rows = res.data.values || []
+  const rows = await leerFilas('push_subs!B:B')
   const rowIndex = rows.findIndex(r => r[0] === endpoint)
   if (rowIndex === -1) return
   await sheets.spreadsheets.values.update({
@@ -537,11 +490,6 @@ function rowToPago(row: string[]): Pago | null {
 // Todas tienen `email`; las lecturas filtran por el usuario.
 
 import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion, InvRol, InvTipoCobro, InvTipoActivo } from './types'
-
-async function leerFilas(range: string): Promise<string[][]> {
-  const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range })
-  return (res.data.values || []) as string[][]
-}
 
 async function agregarFilas(range: string, rows: (string | number)[][]): Promise<void> {
   if (rows.length === 0) return
