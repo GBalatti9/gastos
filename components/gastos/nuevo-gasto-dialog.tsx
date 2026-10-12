@@ -53,20 +53,18 @@ export function NuevoGastoDialog({
   const isMobile = useIsMobile()
   const [openState, setOpenState] = React.useState(false)
   const open = openProp ?? openState
+  const [data, setData] = React.useState<FormData | null>(null)
   const setOpen = React.useCallback(
     (o: boolean) => {
       setOpenState(o)
+      if (!o) setData(null) // descartar cache para refetchear al reabrir
       onOpenChange?.(o)
     },
     [onOpenChange]
   )
-  const [data, setData] = React.useState<FormData | null>(null)
 
   React.useEffect(() => {
-    if (!open) {
-      setData(null) // descartar cache para refetchear al reabrir
-      return
-    }
+    if (!open) return
     let cancelled = false
     Promise.all([fetch('/api/categorias'), fetch('/api/tarjetas')])
       .then(async ([resCat, resTar]) => {

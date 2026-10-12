@@ -18,16 +18,16 @@ interface Props {
  */
 export function NuevoGastoDeepLink(props: Props) {
   const searchParams = useSearchParams()
+  if (searchParams.get('nuevo') !== '1') return null
+  // key: cada vez que vuelve a aparecer ?nuevo=1 se monta un dialog nuevo (abierto)
+  return <DialogDesdeQuery key={searchParams.toString()} {...props} />
+}
+
+function DialogDesdeQuery(props: Props) {
+  const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
-  const quiereAbrir = searchParams.get('nuevo') === '1'
-  const [open, setOpen] = React.useState(false)
-
-  React.useEffect(() => {
-    if (quiereAbrir) setOpen(true)
-  }, [quiereAbrir])
-
-  if (!quiereAbrir && !open) return null
+  const [open, setOpen] = React.useState(true)
 
   return (
     <NuevoGastoDialog

@@ -7,41 +7,48 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+const STANDALONE_QUERY = '(display-mode: standalone)'
+
+function subscribeStandalone(onChange: () => void) {
+  const mql = window.matchMedia(STANDALONE_QUERY)
+  mql.addEventListener('change', onChange)
+  window.addEventListener('appinstalled', onChange)
+  return () => {
+    mql.removeEventListener('change', onChange)
+    window.removeEventListener('appinstalled', onChange)
+  }
+}
+const getStandalone = () => {
+  const nav = window.navigator as Navigator & { standalone?: boolean }
+  return window.matchMedia(STANDALONE_QUERY).matches || nav.standalone === true
+}
+const getIsIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
+const noop = () => () => {}
+const yes = () => true
+const no = () => false
+
 /**
  * Estado de instalación de la PWA:
+ * - `ready`: ya estamos en el cliente (evita desajustes de hidratación)
  * - `standalone`: ya está abierta desde la pantalla de inicio
  * - `isIOS`: Safari iOS no dispara beforeinstallprompt, hay que explicar el gesto
  * - `promptInstall`: en Chrome/Android abre el diálogo nativo de instalación
  */
 export function usePwa() {
-  const [standalone, setStandalone] = React.useState(false)
-  const [isIOS, setIsIOS] = React.useState(false)
+  const ready = React.useSyncExternalStore(noop, yes, no)
+  const standalone = React.useSyncExternalStore(subscribeStandalone, getStandalone, no)
+  const isIOS = React.useSyncExternalStore(noop, getIsIOS, no)
   const [deferred, setDeferred] = React.useState<BeforeInstallPromptEvent | null>(null)
-  const [ready, setReady] = React.useState(false)
 
   React.useEffect(() => {
-    const mql = window.matchMedia('(display-mode: standalone)')
-    const nav = window.navigator as Navigator & { standalone?: boolean }
-    setStandalone(mql.matches || nav.standalone === true)
-    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent))
-    setReady(true)
-
-    const onChange = () => setStandalone(mql.matches)
-    mql.addEventListener('change', onChange)
-
     const onBeforeInstall = (e: Event) => {
       e.preventDefault()
       setDeferred(e as BeforeInstallPromptEvent)
     }
+    const onInstalled = () => setDeferred(null)
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
-    const onInstalled = () => {
-      setDeferred(null)
-      setStandalone(true)
-    }
     window.addEventListener('appinstalled', onInstalled)
-
     return () => {
-      mql.removeEventListener('change', onChange)
       window.removeEventListener('beforeinstallprompt', onBeforeInstall)
       window.removeEventListener('appinstalled', onInstalled)
     }
