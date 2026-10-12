@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, List, Plus, Settings, Wallet } from 'lucide-react'
+import { LayoutDashboard, List, Plus, TrendingUp, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NuevoGastoDialog } from '@/components/gastos/nuevo-gasto-dialog'
 import { cn } from '@/lib/utils'
@@ -12,8 +12,8 @@ const izquierda = [
   { href: '/gastos', label: 'Gastos', icon: List },
 ]
 const derecha = [
+  { href: '/inversion', label: 'Inversión', icon: TrendingUp },
   { href: '/personal', label: 'Mis finanzas', icon: Wallet },
-  { href: '/configuracion', label: 'Ajustes', icon: Settings },
 ]
 
 interface Props {

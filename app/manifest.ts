@@ -29,6 +29,13 @@ export default function manifest(): MetadataRoute.Manifest {
         url: '/dashboard?nuevo=1',
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
+      {
+        name: 'Cargar cobro',
+        short_name: 'Cobro',
+        description: 'Registrar un cobro y ver cuánto invertir',
+        url: '/inversion?cobro=1',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+      },
     ],
   }
 }
