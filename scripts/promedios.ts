@@ -2,13 +2,11 @@
  * Imprime la tabla mes a mes y los promedios (pareja e individual) leyendo
  * directo de la planilla. No toca la UI ni escribe nada.
  *
- *   npm run promedios --
+ *   npm run promedios
  *   npm run promedios -- --ultimos=12
  *   npm run promedios -- --ultimos=todos
  */
-import { getGastos, getPagos } from '../lib/google-sheets'
-import { resumenPorMes, promedioMensual } from '../lib/metricas'
-import { getUsers } from '../lib/users'
+import { loadEnvConfig } from '@next/env'
 
 const arg = process.argv.find(a => a.startsWith('--ultimos='))?.split('=')[1]
 const ultimos: number | 'todos' = arg === 'todos' ? 'todos' : parseInt(arg || '6') || 6
@@ -16,6 +14,14 @@ const ultimos: number | 'todos' = arg === 'todos' ? 'todos' : parseInt(arg || '6
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString('es-AR').padStart(12)}`
 
 async function main() {
+// Mismo loader de env que usa Next (.env, .env.local, claves multilínea, etc.)
+loadEnvConfig(process.cwd())
+// Imports dinámicos: google-sheets lee process.env al evaluarse
+const [{ getGastos, getPagos }, { resumenPorMes, promedioMensual }, { getUsers }] = await Promise.all([
+  import('../lib/google-sheets'),
+  import('../lib/metricas'),
+  import('../lib/users'),
+])
 const [u1, u2] = getUsers()
 const [gastos, pagos] = await Promise.all([getGastos(), getPagos()])
 const resumen = resumenPorMes(pagos, gastos, 'ARS')
