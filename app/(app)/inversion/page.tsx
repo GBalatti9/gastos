@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth'
 import {
-  getInvMeta, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones,
+  getInvMetas, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones,
   asegurarHojas, HOJAS_INVERSION,
 } from '@/lib/google-sheets'
 import { getTipoCambioHoy } from '@/lib/tipo-cambio'
+import { getPrecios } from '@/lib/precios'
 import { hoyAR, mesActualAR, mesAnterior } from '@/lib/dates'
 import {
   debidoDelMes, puestoDelMes, resumenMensual, acumulado, valorCartera, progresoMeta,
@@ -13,15 +14,16 @@ import { InversionView, type DatosInversion } from '@/components/inversion/inver
 
 export const dynamic = 'force-dynamic'
 
-export default async function InversionPage() {
+export default async function InversionPage({ searchParams }: { searchParams: Promise<{ meta?: string }> }) {
   const session = await auth()
   const email = session?.user?.email || ''
+  const { meta: metaParam } = await searchParams
 
-  // Primera vez: crea las hojas inv_* en la planilla si no existen
+  // Primera vez: crea las hojas inv_* (y las columnas nuevas) en la planilla
   await asegurarHojas(HOJAS_INVERSION)
 
-  const [meta, cobros, aportes, posiciones, valuaciones, tc] = await Promise.all([
-    getInvMeta(email),
+  const [metas, cobros, todosAportes, todasPosiciones, todasValuaciones, tc] = await Promise.all([
+    getInvMetas(email),
     getInvCobros(email),
     getInvAportes(email),
     getInvPosiciones(email),
@@ -31,24 +33,39 @@ export default async function InversionPage() {
 
   const hoy = hoyAR()
   const mesActual = mesActualAR()
+  const meta = metas.find(m => m.id === metaParam) ?? metas[0] ?? null
 
   if (!meta) {
-    return <InversionView datos={{ meta: null, cobros, aportes, posiciones, valuaciones, tc, hoy, mesActual, resumen: null }} />
+    return (
+      <InversionView
+        datos={{ metas, meta: null, cobros, aportes: [], posiciones: [], valuaciones: [], precios: {}, tc, hoy, mesActual, resumen: null }}
+      />
+    )
   }
 
-  const cartera = valorCartera(posiciones, aportes, valuaciones)
-  const serie = resumenMensual(meta, cobros, aportes, posiciones, valuaciones, mesActual)
+  // Filas viejas sin meta_id pertenecen a la primera meta
+  const esDefault = meta.id === metas[0].id
+  const deMeta = <T extends { meta_id: string }>(x: T) => x.meta_id === meta.id || (esDefault && !x.meta_id)
+  const posiciones = todasPosiciones.filter(deMeta)
+  const aportes = todosAportes.filter(deMeta)
+  const valuaciones = todasValuaciones.filter(deMeta)
+
+  const precios = await getPrecios(posiciones)
+  const cartera = valorCartera(posiciones, aportes, valuaciones, '9999-12-31', precios, tc)
+  const serie = resumenMensual(meta, cobros, aportes, posiciones, valuaciones, mesActual, precios, tc)
   const f = fase(meta, hoy)
   const ritmo = ritmoReal(aportes, meta, mesAnterior(mesActual), 6)
   const debido = debidoDelMes(meta, cobros, mesActual)
   const puesto = puestoDelMes(aportes, mesActual)
 
   const datos: DatosInversion = {
+    metas,
     meta,
     cobros,
     aportes,
     posiciones,
     valuaciones,
+    precios: Object.fromEntries(precios),
     tc,
     hoy,
     mesActual,
@@ -63,7 +80,7 @@ export default async function InversionPage() {
       fase: f,
       etapas: etapasDesriesgo(meta, cartera, hoy),
       serie,
-      alertas: alertas({ meta, cobros, aportes, posiciones, valuaciones, hoy, tc }),
+      alertas: alertas({ meta, cobros, aportes, posiciones, valuaciones, hoy, tc, precios }),
     },
   }
 

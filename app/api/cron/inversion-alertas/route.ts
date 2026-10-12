@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
-  getInvMeta, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones, getPushSubs, asegurarHojas, HOJA_PUSH_SUBS, HOJAS_INVERSION,
+  getInvMetas, getInvCobros, getInvAportes, getInvPosiciones, getInvValuaciones, getPushSubs, asegurarHojas, HOJA_PUSH_SUBS, HOJAS_INVERSION,
 } from '@/lib/google-sheets'
 import { getTipoCambioHoy } from '@/lib/tipo-cambio'
 import { alertas } from '@/lib/inversion'
@@ -28,15 +28,22 @@ export async function GET(req: Request) {
   const resultado: Record<string, string> = {}
 
   for (const user of getUsers()) {
-    const meta = await getInvMeta(user.email)
-    if (!meta) {
+    const metas = await getInvMetas(user.email)
+    if (metas.length === 0) {
       resultado[user.email] = 'sin meta'
       continue
     }
     const [cobros, aportes, posiciones, valuaciones] = await Promise.all([
       getInvCobros(user.email), getInvAportes(user.email), getInvPosiciones(user.email), getInvValuaciones(user.email),
     ])
-    const diarias = alertas({ meta, cobros, aportes, posiciones, valuaciones, hoy, tc }).filter(a => a.diaria)
+    const diarias = metas.flatMap((meta, i) => {
+      const deMeta = <T extends { meta_id: string }>(x: T) => x.meta_id === meta.id || (i === 0 && !x.meta_id)
+      return alertas({
+        meta, cobros, aportes: aportes.filter(deMeta), posiciones: posiciones.filter(deMeta), valuaciones: valuaciones.filter(deMeta), hoy, tc,
+      })
+        .filter(a => a.diaria)
+        .map(a => ({ ...a, titulo: metas.length > 1 ? `${meta.nombre}: ${a.titulo}` : a.titulo, url: `${a.url}${a.url.includes('?') ? '&' : '?'}meta=${meta.id}` }))
+    })
     if (diarias.length === 0) {
       resultado[user.email] = 'sin alertas'
       continue

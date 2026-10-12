@@ -1,5 +1,6 @@
 import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion } from './types'
 import { mesAnterior, mesSiguiente, hoyAR, mesActualAR } from './dates'
+import { valorUnidades, type Precio } from './precios'
 
 /**
  * Lógica del módulo de inversión con objetivo. Todo es puro: recibe los
@@ -93,9 +94,12 @@ export function puestoDelMes(aportes: InvAporte[], m: string): number {
 export interface ValorPosicion {
   posicion: InvPosicion
   valor: number
-  fuente: 'valuacion' | 'costo'
+  /** precio = cotización automática; valuacion = cargada a mano; dolares = vale lo aportado; costo = sin dato. */
+  fuente: 'precio' | 'valuacion' | 'dolares' | 'costo'
   fecha_valuacion: string | null
   aportado: number
+  unidades: number
+  precio: Precio | null
 }
 
 export interface ValorCartera {
@@ -105,27 +109,42 @@ export interface ValorCartera {
 }
 
 /**
- * Valor de la cartera a una fecha: por posición, la última valuación hasta esa
- * fecha más los aportes posteriores a la valuación; sin valuación, el costo
- * (suma de aportes). Solo posiciones activas.
+ * Valor de la cartera a una fecha, por posición y en este orden:
+ * 1. dólares quietos → valen lo aportado
+ * 2. precio automático (si hay cotización y unidades) → unidades × precio de hoy
+ * 3. última valuación manual hasta esa fecha + aportes posteriores
+ * 4. costo (suma de aportes)
+ * Solo posiciones activas. `precios` se pasa solo para "hoy" (no para meses pasados).
  */
 export function valorCartera(
   posiciones: InvPosicion[],
   aportes: InvAporte[],
   valuaciones: InvValuacion[],
-  hastaFecha: string = '9999-12-31'
+  hastaFecha: string = '9999-12-31',
+  precios?: Map<string, Precio>,
+  tc = 0
 ): ValorCartera {
   const porPosicion: ValorPosicion[] = posiciones
     .filter(p => p.activo)
     .map(p => {
       const aportesPos = aportes.filter(a => a.posicion_id === p.id && a.fecha <= hastaFecha)
       const aportado = aportesPos.reduce((s, a) => s + a.monto_usd, 0)
+      const unidades = aportesPos.reduce((s, a) => s + (a.unidades || 0), 0)
+      const base = { posicion: p, aportado, unidades, precio: null as Precio | null }
+
+      if (p.tipo === 'dolares') return { ...base, valor: aportado, fuente: 'dolares', fecha_valuacion: null }
+
+      const precio = precios?.get(p.id)
+      if (precio && unidades > 0 && (precio.moneda === 'USD' || tc > 0)) {
+        return { ...base, valor: valorUnidades(unidades, precio, tc), fuente: 'precio', fecha_valuacion: null, precio }
+      }
+
       const ultima = valuaciones
         .filter(v => v.posicion_id === p.id && v.fecha <= hastaFecha)
         .sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
-      if (!ultima) return { posicion: p, valor: aportado, fuente: 'costo', fecha_valuacion: null, aportado }
+      if (!ultima) return { ...base, valor: aportado, fuente: 'costo', fecha_valuacion: null }
       const posteriores = aportesPos.filter(a => a.fecha > ultima.fecha).reduce((s, a) => s + a.monto_usd, 0)
-      return { posicion: p, valor: ultima.valor_usd + posteriores, fuente: 'valuacion', fecha_valuacion: ultima.fecha, aportado }
+      return { ...base, valor: ultima.valor_usd + posteriores, fuente: 'valuacion', fecha_valuacion: ultima.fecha }
     })
   return {
     total: porPosicion.reduce((s, v) => s + v.valor, 0),
@@ -150,7 +169,9 @@ export function resumenMensual(
   aportes: InvAporte[],
   posiciones: InvPosicion[],
   valuaciones: InvValuacion[],
-  hastaMes: string
+  hastaMes: string,
+  precios?: Map<string, Precio>,
+  tc = 0
 ): MesInversion[] {
   const out: MesInversion[] = []
   if (!meta.fecha_inicio || hastaMes < meta.fecha_inicio) return out
@@ -165,7 +186,7 @@ export function resumenMensual(
       puesto,
       desvio: puesto - debido,
       aportadoAcumulado: acumulado,
-      valorCartera: valorCartera(posiciones, aportes, valuaciones, `${m}-31`).total,
+      valorCartera: valorCartera(posiciones, aportes, valuaciones, `${m}-31`, m === hastaMes ? precios : undefined, tc).total,
     })
     if (out.length > 600) break
   }
@@ -343,6 +364,7 @@ export interface ContextoAlertas {
   valuaciones: InvValuacion[]
   hoy: string
   tc: number
+  precios?: Map<string, Precio>
 }
 
 const usd = (n: number) => `US$ ${Math.round(n).toLocaleString('es-AR')}`
@@ -402,7 +424,7 @@ export function alertas(ctx: ContextoAlertas): Alerta[] {
   // 4. En desriesgo y la cartera cayó más de 20 % desde su máximo valuado
   const f = fase(meta, hoy)
   if (f.etapa > 0) {
-    const cartera = valorCartera(posiciones, aportes, valuaciones, hoy)
+    const cartera = valorCartera(posiciones, aportes, valuaciones, hoy, ctx.precios, tc)
     const maximo = maximoValuado(posiciones, aportes, valuaciones)
     if (maximo > 0 && cartera.total < maximo * 0.8) {
       out.push({

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getInvMeta, upsertInvMeta, getInvPosiciones, createInvPosiciones } from '@/lib/google-sheets'
+import { getInvMetas, upsertInvMeta } from '@/lib/google-sheets'
 import { mesActualAR } from '@/lib/dates'
 import { emailDeSesion, num } from '../_auth'
 
+/** Todas las metas del usuario. */
 export async function GET() {
   const s = await emailDeSesion()
   if ('error' in s) return s.error
-  return NextResponse.json(await getInvMeta(s.email))
+  return NextResponse.json(await getInvMetas(s.email))
 }
 
-/** Crea o actualiza la meta. Si es la primera vez y no hay posiciones, siembra tres por defecto. */
+/** Crea (sin `id`) o actualiza (con `id`) una meta. No siembra posiciones: las define el usuario. */
 export async function PUT(req: NextRequest) {
   const s = await emailDeSesion()
   if ('error' in s) return s.error
@@ -19,9 +20,15 @@ export async function PUT(req: NextRequest) {
   if (!/^\d{4}-\d{2}$/.test(fecha_objetivo)) {
     return NextResponse.json({ error: 'fecha_objetivo inválida (YYYY-MM)' }, { status: 400 })
   }
+  const metas = await getInvMetas(s.email)
+  const id = String(b.id || '')
+  if (id && !metas.some(m => m.id === id)) return NextResponse.json({ error: 'Meta no encontrada' }, { status: 404 })
+
   const etapas = String(b.desriesgo_etapas || '30,60,90').split(',').map((n: string) => num(n))
   const meta = {
+    id: id || Date.now().toString(),
     email: s.email,
+    nombre: String(b.nombre || '').trim() || (metas.length === 0 ? 'Mi meta' : `Meta ${metas.length + 1}`),
     monto_objetivo_usd: num(b.monto_objetivo_usd),
     fecha_objetivo,
     aporte_base_usd: num(b.aporte_base_usd),
@@ -34,14 +41,5 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Revisá el monto objetivo y el aporte base' }, { status: 400 })
   }
   await upsertInvMeta(meta)
-
-  const posiciones = await getInvPosiciones(s.email)
-  if (posiciones.length === 0) {
-    await createInvPosiciones([
-      { email: s.email, ticker: 'SPY', nombre: 'S&P 500', peso_objetivo: 60, rol: 'core', activo: true },
-      { email: s.email, ticker: 'QQQ', nombre: 'Nasdaq 100', peso_objetivo: 25, rol: 'satelite', activo: true },
-      { email: s.email, ticker: 'SEGURO', nombre: 'Bonos / money market', peso_objetivo: 15, rol: 'seguro', activo: true },
-    ])
-  }
-  return NextResponse.json(meta)
+  return NextResponse.json(meta, { status: id ? 200 : 201 })
 }

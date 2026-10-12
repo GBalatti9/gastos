@@ -2,13 +2,15 @@
 
 import { Suspense, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Settings2, Target } from 'lucide-react'
+import { Plus, Settings2, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { OpcionesToggle } from '@/components/gastos/opciones-toggle'
 import type {
   Alerta, DestinoAporte, EtapaDesriesgo, Fase, MesInversion, Sugerencia, ValorCartera,
 } from '@/lib/inversion'
+import type { Precio } from '@/lib/precios'
 import type { InvAporte, InvCobro, InvMeta, InvPosicion, InvValuacion } from '@/lib/types'
 import { MetaDialog } from './meta-dialog'
 import { CobroDialog } from './cobro-dialog'
@@ -36,11 +38,16 @@ export interface ResumenInv {
 }
 
 export interface DatosInversion {
+  metas: InvMeta[]
+  /** Meta seleccionada (la primera por defecto). */
   meta: InvMeta | null
   cobros: InvCobro[]
+  /** Aportes, posiciones y valuaciones de la meta seleccionada. */
   aportes: InvAporte[]
   posiciones: InvPosicion[]
   valuaciones: InvValuacion[]
+  /** Cotización actual por id de posición (solo las que tienen precio automático). */
+  precios: Record<string, Precio>
   tc: number
   hoy: string
   mesActual: string
@@ -62,13 +69,14 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { meta, resumen } = datos
+  const { metas, meta, resumen } = datos
 
   const tabInicial = (searchParams.get('tab') as Tab) || 'resumen'
   const [tab, setTab] = useState<Tab>(TABS.includes(tabInicial) ? tabInicial : 'resumen')
 
   // Dialogs. Las `key` fuerzan un remount al abrir, así el estado inicial sale fresco de las props.
   const [metaOpen, setMetaOpen] = useState(false)
+  const [metaNueva, setMetaNueva] = useState(false)
   const [cobroOpen, setCobroOpen] = useState(() => !!meta && searchParams.get('cobro') === '1')
   const [aporteOpen, setAporteOpen] = useState(() => !!meta && searchParams.get('aporte') === '1')
   const [posicionesOpen, setPosicionesOpen] = useState(false)
@@ -76,6 +84,13 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
   const [aporteKey, setAporteKey] = useState(0)
   const [prefill, setPrefill] = useState<PrefillAporte | undefined>(undefined)
   const [dialogKey, setDialogKey] = useState(0)
+  const bump = () => setDialogKey((k) => k + 1)
+
+  function irAMeta(id: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('meta', id)
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
   function limpiarQuery() {
     if (!searchParams.get('cobro') && !searchParams.get('aporte')) return
@@ -92,9 +107,10 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
     setAporteOpen(true)
   }
 
-  function onCobroGuardado(cobro: InvCobro, sugerencia: Sugerencia, registrarAporte: boolean) {
-    if (registrarAporte && sugerencia.total_usd > 0) {
-      abrirAporte({ monto_usd: sugerencia.total_usd, cobro_id: cobro.id })
+  function onCobroGuardado(cobro: InvCobro, sugerencias: { meta_id: string; sugerencia: Sugerencia }[], registrarAporte: boolean) {
+    const deEsta = sugerencias.find((s) => s.meta_id === meta?.id)?.sugerencia
+    if (registrarAporte && deEsta && deEsta.total_usd > 0) {
+      abrirAporte({ monto_usd: deEsta.total_usd, cobro_id: cobro.id })
     }
   }
 
@@ -109,35 +125,79 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
             </EmptyMedia>
             <EmptyTitle>Inversión con objetivo</EmptyTitle>
             <EmptyDescription>
-              Definí tu meta en dólares, cuánto aportás por mes y qué parte de los extras invertís.
-              Después, cada vez que cargues un cobro la app te dice cuánto te toca invertir y cuándo llegás.
+              Definí una meta en dólares con fecha, cuánto aportás por mes y qué parte de los extras invertís.
+              Después armás tu cartera con tus instrumentos (CEDEARs, bonos, FCI, cripto, dólares…) y cada vez
+              que cargues un cobro la app te dice cuánto te toca invertir y cuándo llegás.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button size="lg" onClick={() => setMetaOpen(true)}>Configurar mi meta</Button>
+            <Button size="lg" onClick={() => { bump(); setMetaNueva(true); setMetaOpen(true) }}>Configurar mi meta</Button>
           </EmptyContent>
         </Empty>
-        <MetaDialog key={`meta-${dialogKey}`} open={metaOpen} onOpenChange={(o) => { setMetaOpen(o); if (!o) setDialogKey((k) => k + 1) }} meta={null} />
+        <MetaDialog
+          key={`meta-${dialogKey}`}
+          open={metaOpen}
+          onOpenChange={setMetaOpen}
+          meta={null}
+          onGuardada={(m) => { irAMeta(m.id); bump(); setPosicionesOpen(true) }}
+        />
+        {/* Tras crear la meta se abre el armado de la cartera */}
+        <PosicionesDialog key={`pos-${dialogKey}`} open={posicionesOpen} onOpenChange={setPosicionesOpen} posiciones={[]} metaId={metas[0]?.id ?? ''} primeraVez />
       </>
     )
   }
 
+  const sinPosiciones = datos.posiciones.filter((p) => p.activo).length === 0
+
   return (
     <div className="flex flex-col gap-4">
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      {/* Selector de meta */}
+      {(metas.length > 1 || true) && (
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 overflow-x-auto">
-            <TabsList className="w-max">
-              <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="cartera">Cartera</TabsTrigger>
-              <TabsTrigger value="historial">Historial</TabsTrigger>
-              <TabsTrigger value="escenarios">Escenarios</TabsTrigger>
-              <TabsTrigger value="desriesgo">Desriesgo</TabsTrigger>
-            </TabsList>
+            <OpcionesToggle
+              aria-label="Meta"
+              value={meta.id}
+              onChange={irAMeta}
+              opciones={metas.map((m) => ({ value: m.id, label: m.nombre }))}
+              layout="wrap"
+              className="w-max"
+              itemClassName="h-9 px-3"
+            />
           </div>
-          <Button variant="ghost" size="icon" aria-label="Editar meta" onClick={() => { setDialogKey((k) => k + 1); setMetaOpen(true) }}>
+          <Button variant="outline" size="sm" onClick={() => { bump(); setMetaNueva(true); setMetaOpen(true) }}>
+            <Plus data-icon="inline-start" />
+            Meta
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Editar meta" onClick={() => { bump(); setMetaNueva(false); setMetaOpen(true) }}>
             <Settings2 />
           </Button>
+        </div>
+      )}
+
+      {sinPosiciones && (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>Armá la cartera de {meta.nombre}</EmptyTitle>
+            <EmptyDescription>
+              Cargá tus instrumentos con su peso objetivo y su rol (core, satélite o seguro). Sin posiciones no hay adónde aportar.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => { bump(); setPosicionesOpen(true) }}>Agregar posiciones</Button>
+          </EmptyContent>
+        </Empty>
+      )}
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <div className="overflow-x-auto">
+          <TabsList className="w-max">
+            <TabsTrigger value="resumen">Resumen</TabsTrigger>
+            <TabsTrigger value="cartera">Cartera</TabsTrigger>
+            <TabsTrigger value="historial">Historial</TabsTrigger>
+            <TabsTrigger value="escenarios">Escenarios</TabsTrigger>
+            <TabsTrigger value="desriesgo">Desriesgo</TabsTrigger>
+          </TabsList>
         </div>
 
         <TabsContent value="resumen">
@@ -145,16 +205,17 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
             meta={meta}
             resumen={resumen}
             tc={datos.tc}
-            onCobro={() => { setDialogKey((k) => k + 1); setCobroOpen(true) }}
+            onCobro={() => { bump(); setCobroOpen(true) }}
             onAporte={() => abrirAporte()}
-            onValuar={() => { setDialogKey((k) => k + 1); setValuacionesOpen(true) }}
+            onValuar={() => { bump(); setValuacionesOpen(true) }}
           />
         </TabsContent>
         <TabsContent value="cartera">
           <Cartera
             cartera={resumen.cartera}
-            onValuar={() => { setDialogKey((k) => k + 1); setValuacionesOpen(true) }}
-            onPosiciones={() => { setDialogKey((k) => k + 1); setPosicionesOpen(true) }}
+            tc={datos.tc}
+            onValuar={() => { bump(); setValuacionesOpen(true) }}
+            onPosiciones={() => { bump(); setPosicionesOpen(true) }}
           />
         </TabsContent>
         <TabsContent value="historial">
@@ -175,12 +236,20 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
         </TabsContent>
       </Tabs>
 
-      <MetaDialog key={`meta-${dialogKey}`} open={metaOpen} onOpenChange={setMetaOpen} meta={meta} />
+      <MetaDialog
+        key={`meta-${dialogKey}`}
+        open={metaOpen}
+        onOpenChange={setMetaOpen}
+        meta={metaNueva ? null : meta}
+        puedeBorrar={metas.length > 1}
+        onGuardada={(m) => { if (metaNueva) { irAMeta(m.id); bump(); setPosicionesOpen(true) } }}
+      />
       <CobroDialog
         key={`cobro-${dialogKey}`}
         open={cobroOpen}
         onOpenChange={(o) => { setCobroOpen(o); if (!o) limpiarQuery() }}
-        meta={meta}
+        metas={metas}
+        metaActual={meta}
         cobros={datos.cobros}
         tc={datos.tc}
         onGuardado={onCobroGuardado}
@@ -189,12 +258,14 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
         key={`aporte-${aporteKey}`}
         open={aporteOpen}
         onOpenChange={(o) => { setAporteOpen(o); if (!o) { setPrefill(undefined); limpiarQuery() } }}
+        metaId={meta.id}
         posiciones={datos.posiciones}
         destino={resumen.destino}
+        precios={datos.precios}
         tc={datos.tc}
         prefill={prefill}
       />
-      <PosicionesDialog key={`pos-${dialogKey}`} open={posicionesOpen} onOpenChange={setPosicionesOpen} posiciones={datos.posiciones} />
+      <PosicionesDialog key={`pos-${dialogKey}`} open={posicionesOpen} onOpenChange={setPosicionesOpen} posiciones={datos.posiciones} metaId={meta.id} />
       <ValuacionesDialog key={`val-${dialogKey}`} open={valuacionesOpen} onOpenChange={setValuacionesOpen} porPosicion={resumen.cartera.porPosicion} />
     </div>
   )

@@ -14,17 +14,24 @@ import { fmtARS, fmtUSD, parseMonto } from '@/lib/format'
 import { hoyAR } from '@/lib/dates'
 import type { InvCobro, InvMeta } from '@/lib/types'
 
+export interface SugerenciaMeta {
+  meta_id: string
+  nombre: string
+  sugerencia: Sugerencia
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  meta: InvMeta
+  metas: InvMeta[]
+  metaActual: InvMeta
   cobros: InvCobro[]
   tc: number
   /** Se llama al guardar; si `registrarAporte` es true, el padre abre el alta de aporte prellenada. */
-  onGuardado: (cobro: InvCobro, sugerencia: Sugerencia, registrarAporte: boolean) => void
+  onGuardado: (cobro: InvCobro, sugerencias: SugerenciaMeta[], registrarAporte: boolean) => void
 }
 
-export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }: Props) {
+export function CobroDialog({ open, onOpenChange, metas, metaActual, cobros, tc, onGuardado }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'guardar' | 'aporte' | null>(null)
   const [monto, setMonto] = useState('')
@@ -34,10 +41,17 @@ export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }
 
   const montoNum = parseMonto(monto)
   const tcNum = parseMonto(tcInput)
-  const sugerencia =
+  const sugerencias: SugerenciaMeta[] =
     montoNum > 0 && tcNum > 0
-      ? sugerenciaParaCobro({ monto_ars: montoNum, tipo, tipo_cambio: tcNum, fecha }, meta, cobros)
-      : null
+      ? metas.map((m) => ({
+          meta_id: m.id,
+          nombre: m.nombre,
+          sugerencia: sugerenciaParaCobro({ monto_ars: montoNum, tipo, tipo_cambio: tcNum, fecha }, m, cobros),
+        }))
+      : []
+  const total = sugerencias.reduce((s, x) => s + x.sugerencia.total_usd, 0)
+  const totalArs = sugerencias.reduce((s, x) => s + x.sugerencia.total_ars, 0)
+  const deActual = sugerencias.find((s) => s.meta_id === metaActual.id)?.sugerencia
 
   function reset() {
     setMonto('')
@@ -60,14 +74,12 @@ export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
-      toast.success(
-        data.sugerencia.total_usd > 0
-          ? `Cobro guardado · te toca invertir ${fmtARS(data.sugerencia.total_ars)}`
-          : 'Cobro guardado'
-      )
+      const sugs: SugerenciaMeta[] = data.sugerencias
+      const tot = sugs.reduce((s, x) => s + x.sugerencia.total_ars, 0)
+      toast.success(tot > 0 ? `Cobro guardado · te toca invertir ${fmtARS(tot)}` : 'Cobro guardado')
       reset()
       onOpenChange(false)
-      onGuardado(data.cobro, data.sugerencia, registrarAporte)
+      onGuardado(data.cobro, sugs, registrarAporte)
       router.refresh()
     } catch (e) {
       toast.error((e as Error).message || 'Error al guardar el cobro')
@@ -119,8 +131,8 @@ export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }
             />
             <FieldDescription>
               {tipo === 'base'
-                ? `Base: ${fmtUSD(meta.aporte_base_usd)} al dólar del día. Lo que supere ${fmtARS(meta.ingreso_base_ars)} se invierte al ${meta.pct_extra} %.`
-                : `Un extra se invierte al ${meta.pct_extra} %.`}
+                ? `Base: ${fmtUSD(metaActual.aporte_base_usd)} al dólar del día. Lo que supere ${fmtARS(metaActual.ingreso_base_ars)} se invierte al ${metaActual.pct_extra} %.`
+                : `Un extra se invierte al ${metaActual.pct_extra} %.`}
             </FieldDescription>
           </Field>
           <div className="grid grid-cols-2 gap-3">
@@ -136,19 +148,24 @@ export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }
         </FieldGroup>
 
         <div className="rounded-xl border bg-muted/30 p-4">
-          {sugerencia ? (
+          {sugerencias.length > 0 ? (
             <>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">De este cobro te toca invertir</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {fmtARS(sugerencia.total_ars)}
-                <span className="ml-2 text-base font-normal text-muted-foreground">≈ {fmtUSD(sugerencia.total_usd)}</span>
+                {fmtARS(totalArs)}
+                <span className="ml-2 text-base font-normal text-muted-foreground">≈ {fmtUSD(total)}</span>
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {sugerencia.incluye_base && <>Base {fmtUSD(sugerencia.base_usd)}</>}
-                {sugerencia.incluye_base && sugerencia.extra_usd > 0 && ' + '}
-                {sugerencia.extra_usd > 0 && <>extra {fmtUSD(sugerencia.extra_usd)} ({fmtARS(sugerencia.extra_ars)})</>}
-                {!sugerencia.incluye_base && sugerencia.extra_usd === 0 && 'Este mes ya cargaste el sueldo base; de este cobro no toca nada.'}
-              </p>
+              <div className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground">
+                {sugerencias.map(({ meta_id, nombre, sugerencia: s }) => (
+                  <p key={meta_id}>
+                    {metas.length > 1 && <span className="font-medium text-foreground">{nombre}: </span>}
+                    {s.incluye_base && <>base {fmtUSD(s.base_usd)}</>}
+                    {s.incluye_base && s.extra_usd > 0 && ' + '}
+                    {s.extra_usd > 0 && <>extra {fmtUSD(s.extra_usd)} ({fmtARS(s.extra_ars)})</>}
+                    {!s.incluye_base && s.extra_usd === 0 && 'este mes ya cargaste el sueldo base; de este cobro no toca nada'}
+                  </p>
+                ))}
+              </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Ingresá el monto para ver cuánto te toca.</p>
@@ -160,9 +177,9 @@ export function CobroDialog({ open, onOpenChange, meta, cobros, tc, onGuardado }
             {loading === 'guardar' && <Spinner data-icon="inline-start" />}
             Guardar
           </Button>
-          <Button type="button" size="lg" className="h-12 flex-1" disabled={loading !== null || !sugerencia || sugerencia.total_usd <= 0} onClick={() => guardar(true)}>
+          <Button type="button" size="lg" className="h-12 flex-1" disabled={loading !== null || !deActual || deActual.total_usd <= 0} onClick={() => guardar(true)}>
             {loading === 'aporte' && <Spinner data-icon="inline-start" />}
-            Guardar y registrar aporte
+            Guardar y aportar{metas.length > 1 ? ` a ${metaActual.nombre}` : ''}
           </Button>
         </div>
       </form>

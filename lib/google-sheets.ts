@@ -536,7 +536,7 @@ function rowToPago(row: string[]): Pago | null {
 // Hojas: inv_metas, inv_cobros, inv_aportes, inv_posiciones, inv_valuaciones.
 // Todas tienen `email`; las lecturas filtran por el usuario.
 
-import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion, InvRol, InvTipoCobro } from './types'
+import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion, InvRol, InvTipoCobro, InvTipoActivo } from './types'
 
 async function leerFilas(range: string): Promise<string[][]> {
   const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range })
@@ -554,9 +554,9 @@ async function agregarFilas(range: string, rows: (string | number)[][]): Promise
   })
 }
 
-/** Reemplaza la fila cuya columna A vale `key` (o la borra si `row` es null). */
-async function escribirFilaPorClave(hoja: string, ultimaCol: string, key: string, row: (string | number)[] | null): Promise<boolean> {
-  const rows = await leerFilas(`${hoja}!A:A`)
+/** Reemplaza la fila cuya columna `colClave` vale `key` (o la borra si `row` es null). */
+async function escribirFilaPorClave(hoja: string, ultimaCol: string, key: string, row: (string | number)[] | null, colClave = 'A'): Promise<boolean> {
+  const rows = await leerFilas(`${hoja}!${colClave}:${colClave}`)
   const rowIndex = rows.findIndex(r => r[0] === key)
   if (rowIndex === -1) return false
   const ancho = ultimaCol.charCodeAt(0) - 'A'.charCodeAt(0) + 1
@@ -569,11 +569,14 @@ async function escribirFilaPorClave(hoja: string, ultimaCol: string, key: string
   return true
 }
 
-// inv_metas: email | monto_objetivo_usd | fecha_objetivo | aporte_base_usd | ingreso_base_ars | pct_extra | fecha_inicio | desriesgo_etapas
+// inv_metas: email | monto_objetivo_usd | fecha_objetivo | aporte_base_usd | ingreso_base_ars | pct_extra | fecha_inicio | desriesgo_etapas | id | nombre
+// (id y nombre se agregaron después: una fila vieja sin id usa el email como id)
 function rowToInvMeta(r: string[]): InvMeta {
   const etapas = (r[7] || '30,60,90').split(',').map(n => parseFloat(n) || 0)
   return {
+    id: r[8] || r[0],
     email: r[0],
+    nombre: r[9] || 'Mi meta',
     monto_objetivo_usd: parseFloat(r[1]) || 0,
     fecha_objetivo: r[2] || '',
     aporte_base_usd: parseFloat(r[3]) || 0,
@@ -584,19 +587,44 @@ function rowToInvMeta(r: string[]): InvMeta {
   }
 }
 
-export async function getInvMeta(email: string): Promise<InvMeta | null> {
-  const rows = await leerFilas('inv_metas!A2:H')
-  const r = rows.find(r => r[0] === email)
-  return r ? rowToInvMeta(r) : null
+function invMetaToRow(m: InvMeta): (string | number)[] {
+  return [
+    m.email, m.monto_objetivo_usd, m.fecha_objetivo, m.aporte_base_usd, m.ingreso_base_ars,
+    m.pct_extra, m.fecha_inicio, m.desriesgo_etapas.join(','), m.id, m.nombre,
+  ]
 }
 
+/** Todas las metas del usuario, en orden de creación. */
+export async function getInvMetas(email: string): Promise<InvMeta[]> {
+  const rows = await leerFilas('inv_metas!A2:J')
+  return rows.filter(r => r[0] === email).map(rowToInvMeta)
+}
+
+export async function getInvMeta(email: string, id?: string): Promise<InvMeta | null> {
+  const metas = await getInvMetas(email)
+  if (!id) return metas[0] ?? null
+  return metas.find(m => m.id === id) ?? null
+}
+
+/** Crea o actualiza por id. Las filas viejas (sin id) se reconocen por email. */
 export async function upsertInvMeta(meta: InvMeta): Promise<void> {
-  const row = [
-    meta.email, meta.monto_objetivo_usd, meta.fecha_objetivo, meta.aporte_base_usd,
-    meta.ingreso_base_ars, meta.pct_extra, meta.fecha_inicio, meta.desriesgo_etapas.join(','),
-  ]
-  const existia = await escribirFilaPorClave('inv_metas', 'H', meta.email, row)
-  if (!existia) await agregarFilas('inv_metas!A:H', [row])
+  const rows = await leerFilas('inv_metas!A:J')
+  const rowIndex = rows.findIndex(r => (r[8] && r[8] === meta.id) || (!r[8] && r[0] === meta.email && meta.id === meta.email))
+  const row = invMetaToRow(meta)
+  if (rowIndex === -1) {
+    await agregarFilas('inv_metas!A:J', [row])
+    return
+  }
+  await getSheets().spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `inv_metas!A${rowIndex + 1}:J${rowIndex + 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [row] },
+  })
+}
+
+export async function deleteInvMeta(id: string): Promise<void> {
+  await escribirFilaPorClave('inv_metas', 'J', id, null, 'I')
 }
 
 // inv_cobros: id | email | fecha | monto_ars | tipo | tipo_cambio | notas
@@ -620,76 +648,79 @@ export async function deleteInvCobro(id: string): Promise<void> {
   await escribirFilaPorClave('inv_cobros', 'G', id, null)
 }
 
-// inv_aportes: id | email | fecha | monto_usd | monto_ars | tipo_cambio | posicion_id | cobro_id | notas
+// inv_aportes: id | email | fecha | monto_usd | monto_ars | tipo_cambio | posicion_id | cobro_id | notas | unidades | precio | meta_id
 export async function getInvAportes(email: string): Promise<InvAporte[]> {
-  const rows = await leerFilas('inv_aportes!A2:I')
+  const rows = await leerFilas('inv_aportes!A2:L')
   return rows
     .filter(r => r[0] && r[1] === email)
     .map(r => ({
       id: r[0], email: r[1], fecha: r[2] || '', monto_usd: parseFloat(r[3]) || 0, monto_ars: parseFloat(r[4]) || 0,
       tipo_cambio: parseFloat(r[5]) || 0, posicion_id: r[6] || '', cobro_id: r[7] || '', notas: r[8] || '',
+      unidades: parseFloat(r[9]) || 0, precio: parseFloat(r[10]) || 0, meta_id: r[11] || '',
     }))
 }
 
 export async function createInvAporte(data: Omit<InvAporte, 'id'>): Promise<InvAporte> {
   const id = Date.now().toString()
-  await agregarFilas('inv_aportes!A:I', [[
+  await agregarFilas('inv_aportes!A:L', [[
     id, data.email, data.fecha, data.monto_usd, data.monto_ars, data.tipo_cambio, data.posicion_id, data.cobro_id, data.notas,
+    data.unidades, data.precio, data.meta_id,
   ]])
   return { ...data, id }
 }
 
 export async function deleteInvAporte(id: string): Promise<void> {
-  await escribirFilaPorClave('inv_aportes', 'I', id, null)
+  await escribirFilaPorClave('inv_aportes', 'L', id, null)
 }
 
-// inv_posiciones: id | email | ticker | nombre | peso_objetivo | rol | activo
+// inv_posiciones: id | email | ticker | nombre | peso_objetivo | rol | activo | tipo | moneda | meta_id
 export async function getInvPosiciones(email: string): Promise<InvPosicion[]> {
-  const rows = await leerFilas('inv_posiciones!A2:G')
+  const rows = await leerFilas('inv_posiciones!A2:J')
   return rows
     .filter(r => r[0] && r[1] === email)
     .map(r => ({
       id: r[0], email: r[1], ticker: r[2] || '', nombre: r[3] || '', peso_objetivo: parseFloat(r[4]) || 0,
       rol: (r[5] as InvRol) || 'core', activo: (r[6] || 'si') !== 'no',
+      tipo: (r[7] as InvTipoActivo) || 'otro', moneda: r[8] === 'USD' ? 'USD' : 'ARS', meta_id: r[9] || '',
     }))
 }
 
 export async function createInvPosiciones(datos: Omit<InvPosicion, 'id'>[]): Promise<InvPosicion[]> {
   let next = Date.now()
   const creadas = datos.map(d => ({ ...d, id: String(next++) }))
-  await agregarFilas('inv_posiciones!A:G', creadas.map(p => [
-    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no',
+  await agregarFilas('inv_posiciones!A:J', creadas.map(p => [
+    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no', p.tipo, p.moneda, p.meta_id,
   ]))
   return creadas
 }
 
 export async function updateInvPosicion(p: InvPosicion): Promise<void> {
-  await escribirFilaPorClave('inv_posiciones', 'G', p.id, [
-    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no',
+  await escribirFilaPorClave('inv_posiciones', 'J', p.id, [
+    p.id, p.email, p.ticker, p.nombre, p.peso_objetivo, p.rol, p.activo ? 'si' : 'no', p.tipo, p.moneda, p.meta_id,
   ])
 }
 
-// inv_valuaciones: id | email | fecha | posicion_id | valor_usd
+// inv_valuaciones: id | email | fecha | posicion_id | valor_usd | meta_id
 export async function getInvValuaciones(email: string): Promise<InvValuacion[]> {
-  const rows = await leerFilas('inv_valuaciones!A2:E')
+  const rows = await leerFilas('inv_valuaciones!A2:F')
   return rows
     .filter(r => r[0] && r[1] === email)
-    .map(r => ({ id: r[0], email: r[1], fecha: r[2] || '', posicion_id: r[3] || '', valor_usd: parseFloat(r[4]) || 0 }))
+    .map(r => ({ id: r[0], email: r[1], fecha: r[2] || '', posicion_id: r[3] || '', valor_usd: parseFloat(r[4]) || 0, meta_id: r[5] || '' }))
 }
 
 export async function createInvValuaciones(datos: Omit<InvValuacion, 'id'>[]): Promise<void> {
   let next = Date.now()
-  await agregarFilas('inv_valuaciones!A:E', datos.map(v => [String(next++), v.email, v.fecha, v.posicion_id, v.valor_usd]))
+  await agregarFilas('inv_valuaciones!A:F', datos.map(v => [String(next++), v.email, v.fecha, v.posicion_id, v.valor_usd, v.meta_id]))
 }
 
 // ─── Hojas: crear las que falten ──────────────────────────────────────────────
 
 export const HOJAS_INVERSION: Record<string, string[]> = {
-  inv_metas: ['email', 'monto_objetivo_usd', 'fecha_objetivo', 'aporte_base_usd', 'ingreso_base_ars', 'pct_extra', 'fecha_inicio', 'desriesgo_etapas'],
+  inv_metas: ['email', 'monto_objetivo_usd', 'fecha_objetivo', 'aporte_base_usd', 'ingreso_base_ars', 'pct_extra', 'fecha_inicio', 'desriesgo_etapas', 'id', 'nombre'],
   inv_cobros: ['id', 'email', 'fecha', 'monto_ars', 'tipo', 'tipo_cambio', 'notas'],
-  inv_aportes: ['id', 'email', 'fecha', 'monto_usd', 'monto_ars', 'tipo_cambio', 'posicion_id', 'cobro_id', 'notas'],
-  inv_posiciones: ['id', 'email', 'ticker', 'nombre', 'peso_objetivo', 'rol', 'activo'],
-  inv_valuaciones: ['id', 'email', 'fecha', 'posicion_id', 'valor_usd'],
+  inv_aportes: ['id', 'email', 'fecha', 'monto_usd', 'monto_ars', 'tipo_cambio', 'posicion_id', 'cobro_id', 'notas', 'unidades', 'precio', 'meta_id'],
+  inv_posiciones: ['id', 'email', 'ticker', 'nombre', 'peso_objetivo', 'rol', 'activo', 'tipo', 'moneda', 'meta_id'],
+  inv_valuaciones: ['id', 'email', 'fecha', 'posicion_id', 'valor_usd', 'meta_id'],
 }
 
 export const HOJA_PUSH_SUBS: Record<string, string[]> = {
@@ -724,6 +755,30 @@ export async function asegurarHojas(hojas: Record<string, string[]>): Promise<st
         data: faltantes.map(h => ({ range: `${h}!A1`, values: [hojas[h]] })),
       },
     })
+  }
+  // Hojas que ya existían: completar headers que falten al final (columnas agregadas después)
+  const existentesPendientes = pendientes.filter(h => !faltantes.includes(h))
+  if (existentesPendientes.length > 0) {
+    const res = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges: existentesPendientes.map(h => `${h}!1:1`),
+    })
+    const updates: { range: string; values: string[][] }[] = []
+    res.data.valueRanges?.forEach((vr, i) => {
+      const hoja = existentesPendientes[i]
+      const actuales = (vr.values?.[0] || []) as string[]
+      const faltan = hojas[hoja].filter(c => !actuales.includes(c))
+      if (faltan.length > 0) {
+        const col = String.fromCharCode('A'.charCodeAt(0) + actuales.length)
+        updates.push({ range: `${hoja}!${col}1`, values: [faltan] })
+      }
+    })
+    if (updates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: { valueInputOption: 'RAW', data: updates },
+      })
+    }
   }
   for (const h of pendientes) hojasVerificadas.add(h)
   return faltantes

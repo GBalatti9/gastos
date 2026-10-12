@@ -9,7 +9,7 @@ export async function GET() {
   return NextResponse.json(await getInvValuaciones(s.email))
 }
 
-/** Batch: { fecha, valores: { [posicion_id]: valor_usd } }. Una fila por posición. */
+/** Batch: { fecha, valores: { [posicion_id]: valor_usd } }. Una fila por posición, con la meta de cada una. */
 export async function POST(req: NextRequest) {
   const s = await emailDeSesion()
   if ('error' in s) return s.error
@@ -18,8 +18,9 @@ export async function POST(req: NextRequest) {
   const valores: Record<string, unknown> = b.valores || {}
   const posiciones = await getInvPosiciones(s.email)
   const filas = Object.entries(valores)
-    .filter(([id, v]) => posiciones.some(p => p.id === id) && num(v, -1) >= 0)
-    .map(([posicion_id, v]) => ({ email: s.email, fecha, posicion_id, valor_usd: Math.round(num(v) * 100) / 100 }))
+    .map(([id, v]) => ({ pos: posiciones.find(p => p.id === id), v }))
+    .filter(({ pos, v }) => pos && num(v, -1) >= 0)
+    .map(({ pos, v }) => ({ email: s.email, fecha, posicion_id: pos!.id, valor_usd: Math.round(num(v) * 100) / 100, meta_id: pos!.meta_id }))
   if (filas.length === 0) return NextResponse.json({ error: 'Sin valores válidos' }, { status: 400 })
   await createInvValuaciones(filas)
   return NextResponse.json({ ok: true, guardadas: filas.length }, { status: 201 })

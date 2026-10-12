@@ -12,6 +12,8 @@ import { OpcionesToggle } from '@/components/gastos/opciones-toggle'
 import { ModalResponsive } from './modal-responsive'
 import { fmtARS, fmtUSD, parseMonto } from '@/lib/format'
 import { hoyAR } from '@/lib/dates'
+import { unidadesPorMonto, type Precio } from '@/lib/precios'
+import { TIPO_LABEL, UNIDAD_LABEL } from '@/lib/activos'
 import type { DestinoAporte } from '@/lib/inversion'
 import type { InvPosicion } from '@/lib/types'
 
@@ -23,8 +25,10 @@ export interface PrefillAporte {
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  metaId: string
   posiciones: InvPosicion[]
   destino: DestinoAporte | null
+  precios: Record<string, Precio>
   tc: number
   prefill?: PrefillAporte
 }
@@ -33,7 +37,7 @@ interface Props {
  * El padre lo monta con una `key` nueva cada vez que lo abre, así el estado
  * inicial (monto sugerido, TC, posición destino) sale fresco de las props.
  */
-export function AporteDialog({ open, onOpenChange, posiciones, destino, tc, prefill }: Props) {
+export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, precios, tc, prefill }: Props) {
   const router = useRouter()
   const activas = posiciones.filter((p) => p.activo)
   const [loading, setLoading] = useState(false)
@@ -42,12 +46,17 @@ export function AporteDialog({ open, onOpenChange, posiciones, destino, tc, pref
   const [tcInput, setTcInput] = useState(tc > 0 ? String(Math.round(tc)) : '')
   const [posicionId, setPosicionId] = useState(destino?.posicion.id || activas[0]?.id || '')
   const [fecha, setFecha] = useState(hoyAR())
+  const [unidadesInput, setUnidadesInput] = useState('')
 
   const montoNum = parseMonto(monto)
   const tcNum = parseMonto(tcInput)
   const montoUsd = moneda === 'USD' ? montoNum : tcNum > 0 ? montoNum / tcNum : 0
   const montoArs = moneda === 'ARS' ? montoNum : montoNum * tcNum
   const posicion = activas.find((p) => p.id === posicionId)
+  const precio = posicion ? precios[posicion.id] : undefined
+  const unidadesAuto = precio && montoUsd > 0 ? unidadesPorMonto(montoUsd, precio, tcNum) : 0
+  const unidadLabel = posicion ? UNIDAD_LABEL[posicion.tipo] : ''
+  const muestraUnidades = !!posicion && posicion.tipo !== 'dolares' && posicion.tipo !== 'plazo_fijo'
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
@@ -61,17 +70,20 @@ export function AporteDialog({ open, onOpenChange, posiciones, destino, tc, pref
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          meta_id: metaId,
           monto_usd: montoUsd,
           monto_ars: montoArs,
           tipo_cambio: tcNum,
           posicion_id: posicionId,
           fecha,
           cobro_id: prefill?.cobro_id || '',
+          unidades: unidadesInput ? parseMonto(unidadesInput) : undefined,
+          precio: precio?.precio,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
-      toast.success(`Aporte de ${fmtUSD(montoUsd)} a ${posicion?.ticker ?? ''} registrado`)
+      toast.success(`Aporte de ${fmtUSD(montoUsd)} a ${posicion?.ticker || posicion?.nombre || ''} registrado`)
       onOpenChange(false)
       router.refresh()
     } catch (err) {
@@ -120,22 +132,50 @@ export function AporteDialog({ open, onOpenChange, posiciones, destino, tc, pref
 
           <Field>
             <FieldLabel>Va a</FieldLabel>
-            <OpcionesToggle
-              value={posicionId}
-              onChange={setPosicionId}
-              opciones={activas.map((p) => ({ value: p.id, label: p.ticker }))}
-              layout="wrap"
-            />
-            {destino && (
+            {activas.length === 0 ? (
+              <FieldDescription>No hay posiciones en esta meta. Agregalas desde Cartera → Posiciones.</FieldDescription>
+            ) : (
+              <OpcionesToggle
+                value={posicionId}
+                onChange={(v) => { setPosicionId(v); setUnidadesInput('') }}
+                opciones={activas.map((p) => ({ value: p.id, label: p.ticker || p.nombre }))}
+                layout="wrap"
+              />
+            )}
+            {posicion && (
               <FieldDescription className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary">Sugerido: {destino.posicion.ticker}</Badge>
-                {destino.faltante > 0
-                  ? `le faltan ${fmtUSD(destino.faltante)} para su peso objetivo`
-                  : 'está en su peso objetivo'}
-                {destino.motivo === 'desriesgo' && ' · fase de desriesgo'}
+                <Badge variant="outline">{TIPO_LABEL[posicion.tipo]}</Badge>
+                {destino?.posicion.id === posicion.id && (
+                  <>
+                    <Badge variant="secondary">Sugerida</Badge>
+                    {destino.faltante > 0 ? `le faltan ${fmtUSD(destino.faltante)} para su peso objetivo` : 'está en su peso objetivo'}
+                    {destino.motivo === 'desriesgo' && ' · fase de desriesgo'}
+                  </>
+                )}
               </FieldDescription>
             )}
           </Field>
+
+          {muestraUnidades && (
+            <Field orientation="horizontal">
+              <div className="flex-1">
+                <FieldLabel htmlFor="aporte-unidades">Cantidad{unidadLabel ? ` (${unidadLabel})` : ''}</FieldLabel>
+                <FieldDescription>
+                  {precio
+                    ? `Cotiza ${precio.moneda === 'USD' ? fmtUSD(precio.precio, 2) : fmtARS(precio.precio)}${precio.cada100 ? ' cada 100' : ''} · ${precio.fuente}. Si lo dejás vacío: ≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 4 })}.`
+                    : 'Opcional. Sin precio automático: anotá cuántas compraste si querés llevarlo.'}
+                </FieldDescription>
+              </div>
+              <Input
+                id="aporte-unidades"
+                inputMode="decimal"
+                placeholder={unidadesAuto > 0 ? unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 4 }) : '—'}
+                value={unidadesInput}
+                onChange={(e) => setUnidadesInput(e.target.value)}
+                className="w-32 text-right text-base tabular-nums md:text-sm"
+              />
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field>

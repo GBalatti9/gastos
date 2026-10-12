@@ -32,7 +32,7 @@ export function HistorialChart({ serie, cobros, aportes, posiciones }: Props) {
   }))
   const ultimo = serie[serie.length - 1]
   const mercado = ultimo ? ultimo.valorCartera - ultimo.aportadoAcumulado : 0
-  const posNombre = (id: string) => posiciones.find((p) => p.id === id)?.ticker ?? '—'
+  const posNombre = (id: string) => { const p = posiciones.find((p) => p.id === id); return p ? p.ticker || p.nombre : '—' }
 
   const movimientos = React.useMemo(() => {
     const items = [

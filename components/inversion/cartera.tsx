@@ -5,20 +5,34 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { fmtFecha, fmtUSD } from '@/lib/format'
-import type { ValorCartera } from '@/lib/inversion'
-import type { InvRol } from '@/lib/types'
+import { fmtARS, fmtFecha, fmtUSD } from '@/lib/format'
+import { ROL_LABEL as ROL, TIPO_LABEL } from '@/lib/activos'
+import type { ValorCartera, ValorPosicion } from '@/lib/inversion'
 import { cn } from '@/lib/utils'
 
 interface Props {
   cartera: ValorCartera
+  tc: number
   onValuar: () => void
   onPosiciones: () => void
 }
 
-const ROL: Record<InvRol, string> = { core: 'Core', satelite: 'Satélite', seguro: 'Seguro' }
+function fuenteLabel(v: ValorPosicion): string {
+  switch (v.fuente) {
+    case 'precio':
+      return v.precio
+        ? `${v.unidades.toLocaleString('es-AR', { maximumFractionDigits: 2 })} × ${v.precio.moneda === 'USD' ? fmtUSD(v.precio.precio, 2) : fmtARS(v.precio.precio)}${v.precio.cada100 ? '/100' : ''} · ${v.precio.fuente}`
+        : 'precio automático'
+    case 'valuacion':
+      return v.fecha_valuacion ? `valuado ${fmtFecha(v.fecha_valuacion)}` : 'valuado'
+    case 'dolares':
+      return 'dólares: vale lo aportado'
+    default:
+      return 'costo (sin valuación)'
+  }
+}
 
-export function Cartera({ cartera, onValuar, onPosiciones }: Props) {
+export function Cartera({ cartera, tc, onValuar, onPosiciones }: Props) {
   const total = cartera.total
   const filas = cartera.porPosicion.map((v) => {
     const pesoActual = total > 0 ? (v.valor / total) * 100 : 0
@@ -33,7 +47,8 @@ export function Cartera({ cartera, onValuar, onPosiciones }: Props) {
         <CardTitle>Cartera · {fmtUSD(total)}</CardTitle>
         <CardDescription>
           Peso actual vs objetivo de cada posición y cuánto le falta.
-          {ultimaValuacion ? ` Última valuación: ${fmtFecha(ultimaValuacion)}.` : ' Sin valuaciones: se muestra lo aportado.'}
+          {filas.some((f) => f.fuente === 'precio') && ` Cotizaciones automáticas al dólar CCL ${fmtARS(tc)}.`}
+          {ultimaValuacion ? ` Última valuación manual: ${fmtFecha(ultimaValuacion)}.` : ''}
         </CardDescription>
         <div className="flex flex-wrap gap-2 pt-2">
           <Button size="sm" onClick={onValuar}><RefreshCw data-icon="inline-start" />Actualizar valores</Button>
@@ -47,8 +62,8 @@ export function Cartera({ cartera, onValuar, onPosiciones }: Props) {
             <div key={f.posicion.id} className="rounded-xl border p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold">{f.posicion.ticker} <Badge variant="outline" className="ml-1">{ROL[f.posicion.rol]}</Badge></p>
-                  <p className="text-xs text-muted-foreground">{f.posicion.nombre}</p>
+                  <p className="text-sm font-semibold">{f.posicion.ticker || f.posicion.nombre} <Badge variant="outline" className="ml-1">{ROL[f.posicion.rol]}</Badge></p>
+                  <p className="text-xs text-muted-foreground">{TIPO_LABEL[f.posicion.tipo]} · {fuenteLabel(f)}</p>
                 </div>
                 <p className="text-sm font-semibold tabular-nums">{fmtUSD(f.valor)}</p>
               </div>
@@ -83,7 +98,10 @@ export function Cartera({ cartera, onValuar, onPosiciones }: Props) {
             <TableBody>
               {filas.map((f) => (
                 <TableRow key={f.posicion.id}>
-                  <TableCell className="font-medium">{f.posicion.ticker} <span className="text-muted-foreground">· {f.posicion.nombre}</span></TableCell>
+                  <TableCell className="font-medium">
+                    {f.posicion.ticker || f.posicion.nombre}
+                    <span className="text-muted-foreground"> · {TIPO_LABEL[f.posicion.tipo]}</span>
+                  </TableCell>
                   <TableCell><Badge variant="outline">{ROL[f.posicion.rol]}</Badge></TableCell>
                   <TableCell className="text-right tabular-nums">{fmtUSD(f.valor)}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">{fmtUSD(f.aportado)}</TableCell>
@@ -92,9 +110,7 @@ export function Cartera({ cartera, onValuar, onPosiciones }: Props) {
                   <TableCell className={cn('text-right tabular-nums', f.faltante > 0 ? 'text-orange-alert' : 'text-green-favor')}>
                     {f.faltante > 0 ? fmtUSD(f.faltante) : `+${fmtUSD(-f.faltante)}`}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {f.fuente === 'valuacion' && f.fecha_valuacion ? `valuado ${fmtFecha(f.fecha_valuacion)}` : 'costo'}
-                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{fuenteLabel(f)}</TableCell>
                 </TableRow>
               ))}
               <TableRow className="bg-muted/50 font-semibold">

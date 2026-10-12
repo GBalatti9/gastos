@@ -146,7 +146,7 @@ export function ResumenInversion({ meta, resumen, tc, onCobro, onAporte, onValua
         <Card className={cn('@container/card', CARD)}>
           <CardHeader>
             <CardDescription>Próximo aporte va a</CardDescription>
-            <CardTitle className={TITULO}>{destino?.posicion.ticker ?? '—'}</CardTitle>
+            <CardTitle className={cn(TITULO, 'truncate')}>{destino ? destino.posicion.ticker || destino.posicion.nombre : '—'}</CardTitle>
             <CardAction>
               <Badge variant="outline"><TrendingUp />{destino?.motivo === 'desriesgo' ? 'desriesgo' : 'rebalanceo'}</Badge>
             </CardAction>
@@ -156,7 +156,7 @@ export function ResumenInversion({ meta, resumen, tc, onCobro, onAporte, onValua
               ? destino.faltante > 0
                 ? `Le faltan ${fmtUSD(destino.faltante)} para su peso objetivo (${destino.posicion.peso_objetivo} %).`
                 : 'Está en su peso objetivo; va por rebalanceo.'
-              : 'Configurá posiciones en Cartera.'}
+              : 'Armá la cartera en la pestaña Cartera → Posiciones.'}
           </CardFooter>
         </Card>
 

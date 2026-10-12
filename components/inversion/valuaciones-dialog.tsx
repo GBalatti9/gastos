@@ -23,11 +23,12 @@ export function ValuacionesDialog({ open, onOpenChange, porPosicion }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [fecha, setFecha] = useState(hoyAR())
+  // Prellenar solo las que se valúan a mano; las automáticas y los dólares quedan vacías (no se guardan)
   const [valores, setValores] = useState<Record<string, string>>(
-    Object.fromEntries(porPosicion.map((v) => [v.posicion.id, String(Math.round(v.valor))]))
+    Object.fromEntries(porPosicion.filter((v) => v.fuente === 'valuacion' || v.fuente === 'costo').map((v) => [v.posicion.id, String(Math.round(v.valor))]))
   )
 
-  const total = porPosicion.reduce((s, v) => s + parseMonto(valores[v.posicion.id] ?? ''), 0)
+  const total = porPosicion.reduce((s, v) => s + (valores[v.posicion.id]?.trim() ? parseMonto(valores[v.posicion.id]) : v.valor), 0)
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
@@ -38,7 +39,7 @@ export function ValuacionesDialog({ open, onOpenChange, porPosicion }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fecha,
-          valores: Object.fromEntries(Object.entries(valores).map(([id, v]) => [id, parseMonto(v)])),
+          valores: Object.fromEntries(Object.entries(valores).filter(([, v]) => v.trim() !== '').map(([id, v]) => [id, parseMonto(v)])),
         }),
       })
       const data = await res.json()
@@ -61,12 +62,16 @@ export function ValuacionesDialog({ open, onOpenChange, porPosicion }: Props) {
             <FieldLabel htmlFor="val-fecha">Fecha</FieldLabel>
             <Input id="val-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-11 text-base md:h-9 md:text-sm" />
           </Field>
-          {porPosicion.map((v) => (
+          {porPosicion.filter((v) => v.fuente !== 'dolares').map((v) => (
             <Field key={v.posicion.id} orientation="horizontal">
               <div className="flex-1">
                 <FieldLabel htmlFor={`val-${v.posicion.id}`}>{v.posicion.ticker}</FieldLabel>
                 <FieldDescription>
-                  {v.fuente === 'valuacion' && v.fecha_valuacion
+                  {v.fuente === 'precio'
+                    ? `tiene precio automático (${fmtUSD(v.valor)}); solo cargalo si querés pisarlo`
+                    : v.fuente === 'dolares'
+                    ? 'dólares quietos: vale lo aportado'
+                    : v.fuente === 'valuacion' && v.fecha_valuacion
                     ? `última: ${fmtUSD(v.valor)} (${fmtFecha(v.fecha_valuacion)})`
                     : `sin valuación · costo ${fmtUSD(v.aportado)}`}
                 </FieldDescription>

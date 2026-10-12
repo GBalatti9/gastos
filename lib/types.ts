@@ -98,9 +98,13 @@ export interface NotificacionPayload {
 
 export type InvTipoCobro = 'base' | 'extra'
 export type InvRol = 'core' | 'satelite' | 'seguro'
+/** Tipo de activo de una posición. Define moneda de cotización y si hay precio automático. */
+export type InvTipoActivo = 'cedear' | 'accion' | 'bono' | 'letra' | 'fci' | 'plazo_fijo' | 'cripto' | 'dolares' | 'otro'
 
 export interface InvMeta {
+  id: string
   email: string
+  nombre: string
   monto_objetivo_usd: number
   fecha_objetivo: string // YYYY-MM
   aporte_base_usd: number
@@ -131,6 +135,11 @@ export interface InvAporte {
   posicion_id: string
   cobro_id: string
   notas: string
+  /** Unidades compradas (acciones, nominales, cripto). 0 si no aplica. */
+  unidades: number
+  /** Precio unitario en la moneda de cotización al momento del aporte. */
+  precio: number
+  meta_id: string
 }
 
 export interface InvPosicion {
@@ -141,6 +150,10 @@ export interface InvPosicion {
   peso_objetivo: number // 0-100
   rol: InvRol
   activo: boolean
+  tipo: InvTipoActivo
+  /** Moneda en la que cotiza (CEDEAR/bono/FCI → ARS; cripto/dólares → USD). */
+  moneda: 'ARS' | 'USD'
+  meta_id: string
 }
 
 export interface InvValuacion {
@@ -149,4 +162,5 @@ export interface InvValuacion {
   fecha: string // YYYY-MM-DD
   posicion_id: string
   valor_usd: number
+  meta_id: string
 }

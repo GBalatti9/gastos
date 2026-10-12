@@ -9,17 +9,18 @@ import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion } from '..
 
 const EMAIL = 'a@test.com'
 const meta: InvMeta = {
-  email: EMAIL, monto_objetivo_usd: 50000, fecha_objetivo: '2029-04', aporte_base_usd: 500,
+  id: 'm1', nombre: 'Meta', email: EMAIL, monto_objetivo_usd: 50000, fecha_objetivo: '2029-04', aporte_base_usd: 500,
   ingreso_base_ars: 3_500_000, pct_extra: 100, fecha_inicio: '2026-07', desriesgo_etapas: [30, 60, 90],
 }
 const TC = 1400
 const cobro = (o: Partial<InvCobro>): InvCobro => ({ id: 'c1', email: EMAIL, fecha: '2026-10-05', monto_ars: 3_500_000, tipo: 'base', tipo_cambio: TC, notas: '', ...o })
-const aporte = (o: Partial<InvAporte>): InvAporte => ({ id: 'a1', email: EMAIL, fecha: '2026-10-06', monto_usd: 500, monto_ars: 500 * TC, tipo_cambio: TC, posicion_id: 'spy', cobro_id: '', notas: '', ...o })
+const aporte = (o: Partial<InvAporte>): InvAporte => ({ id: 'a1', email: EMAIL, fecha: '2026-10-06', monto_usd: 500, monto_ars: 500 * TC, tipo_cambio: TC, posicion_id: 'spy', cobro_id: '', notas: '', unidades: 0, precio: 0, meta_id: 'm1', ...o })
+const pos = (o: Partial<InvPosicion>): InvPosicion => ({ id: 'x', email: EMAIL, ticker: '', nombre: '', peso_objetivo: 0, rol: 'core', activo: true, tipo: 'cedear', moneda: 'ARS', meta_id: 'm1', ...o })
 const posiciones: InvPosicion[] = [
-  { id: 'spy', email: EMAIL, ticker: 'SPY', nombre: 'S&P 500', peso_objetivo: 60, rol: 'core', activo: true },
-  { id: 'qqq', email: EMAIL, ticker: 'QQQ', nombre: 'Nasdaq', peso_objetivo: 25, rol: 'satelite', activo: true },
-  { id: 'bono', email: EMAIL, ticker: 'BONO', nombre: 'Seguro', peso_objetivo: 15, rol: 'seguro', activo: true },
-  { id: 'old', email: EMAIL, ticker: 'OLD', nombre: 'Baja', peso_objetivo: 0, rol: 'satelite', activo: false },
+  pos({ id: 'spy', ticker: 'SPY', nombre: 'S&P 500', peso_objetivo: 60, rol: 'core' }),
+  pos({ id: 'qqq', ticker: 'QQQ', nombre: 'Nasdaq', peso_objetivo: 25, rol: 'satelite' }),
+  pos({ id: 'bono', ticker: 'AL30', nombre: 'Seguro', peso_objetivo: 15, rol: 'seguro', tipo: 'bono' }),
+  pos({ id: 'old', ticker: 'OLD', nombre: 'Baja', peso_objetivo: 0, rol: 'satelite', activo: false }),
 ]
 
 test('extra: cobro extra va entero; cobro base solo el excedente sobre el ingreso base', () => {
@@ -65,7 +66,7 @@ test('valor de cartera: costo sin valuación, valuación + aportes posteriores c
   const sinVal = valorCartera(posiciones, aportes, [])
   assert.equal(sinVal.total, 1500) // la posición inactiva no cuenta
   assert.equal(sinVal.porPosicion.find(v => v.posicion.id === 'spy')?.fuente, 'costo')
-  const vals: InvValuacion[] = [{ id: 'v1', email: EMAIL, fecha: '2026-08-31', posicion_id: 'spy', valor_usd: 1100 }]
+  const vals: InvValuacion[] = [{ id: 'v1', email: EMAIL, fecha: '2026-08-31', posicion_id: 'spy', valor_usd: 1100, meta_id: 'm1' }]
   const conVal = valorCartera(posiciones, aportes, vals)
   const spy = conVal.porPosicion.find(v => v.posicion.id === 'spy')!
   assert.equal(spy.fuente, 'valuacion')
@@ -118,7 +119,7 @@ test('próximo aporte: rebalanceo en acumulación, balde seguro en desriesgo', (
   assert.equal(d.posicion.ticker, 'QQQ')
   assert.equal(d.motivo, 'rebalanceo')
   const dd = proximoAporteVa(cartera, fase(meta, '2028-05-01'), 500)!
-  assert.equal(dd.posicion.ticker, 'BONO')
+  assert.equal(dd.posicion.ticker, 'AL30')
   assert.equal(dd.motivo, 'desriesgo')
   assert.equal(proximoAporteVa({ total: 0, aportado: 0, porPosicion: [] }, fase(meta), 0), null)
 })
@@ -139,9 +140,37 @@ test('alertas', () => {
   assert.ok(a3.some(a => a.tipo === 'dolar_movio'))
   // 4: en desriesgo con caída > 20 %
   const vals: InvValuacion[] = [
-    { id: 'v1', email: EMAIL, fecha: '2028-01-31', posicion_id: 'spy', valor_usd: 10000 },
-    { id: 'v2', email: EMAIL, fecha: '2028-04-30', posicion_id: 'spy', valor_usd: 7000 },
+    { id: 'v1', email: EMAIL, fecha: '2028-01-31', posicion_id: 'spy', valor_usd: 10000, meta_id: 'm1' },
+    { id: 'v2', email: EMAIL, fecha: '2028-04-30', posicion_id: 'spy', valor_usd: 7000, meta_id: 'm1' },
   ]
   const a4 = alertas({ ...base, valuaciones: vals, cobros: [], aportes: [aporte({ fecha: '2027-01-01', monto_usd: 9000 })], hoy: '2028-05-01' })
   assert.ok(a4.some(a => a.tipo === 'caida_desriesgo'))
+})
+
+test('valor con precio automático: unidades × precio, bonos cada 100, dólares = aportado', () => {
+  const ps = [
+    pos({ id: 'aapl', ticker: 'AAPL', tipo: 'cedear', moneda: 'ARS', peso_objetivo: 50 }),
+    pos({ id: 'al30', ticker: 'AL30', tipo: 'bono', moneda: 'ARS', peso_objetivo: 30, rol: 'seguro' }),
+    pos({ id: 'usd', ticker: '', tipo: 'dolares', moneda: 'USD', peso_objetivo: 20, rol: 'seguro' }),
+  ]
+  const aps = [
+    aporte({ id: '1', posicion_id: 'aapl', monto_usd: 100, unidades: 10, precio: 14000 }),
+    aporte({ id: '2', posicion_id: 'al30', monto_usd: 100, unidades: 200, precio: 70000 }), // 200 nominales
+    aporte({ id: '3', posicion_id: 'usd', monto_usd: 300 }),
+  ]
+  const precios = new Map([
+    ['aapl', { precio: 28000, moneda: 'ARS' as const, cada100: false, fuente: 'test' }],
+    ['al30', { precio: 86570, moneda: 'ARS' as const, cada100: true, fuente: 'test' }],
+  ])
+  const c = valorCartera(ps, aps, [], '9999-12-31', precios, 1400)
+  const por = Object.fromEntries(c.porPosicion.map(v => [v.posicion.id, v]))
+  assert.equal(por.aapl.fuente, 'precio')
+  assert.equal(Math.round(por.aapl.valor), 200) // 10 × 28000 / 1400
+  assert.equal(por.al30.fuente, 'precio')
+  assert.equal(Math.round(por.al30.valor), Math.round((200 * 86570) / 100 / 1400))
+  assert.equal(por.usd.fuente, 'dolares')
+  assert.equal(por.usd.valor, 300)
+  // sin precios ni unidades → costo
+  const sin = valorCartera(ps, aps, [])
+  assert.equal(Object.fromEntries(sin.porPosicion.map(v => [v.posicion.id, v.fuente])).aapl, 'costo')
 })

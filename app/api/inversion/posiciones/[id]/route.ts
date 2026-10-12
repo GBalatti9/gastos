@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getInvPosiciones, updateInvPosicion } from '@/lib/google-sheets'
 import { emailDeSesion, num } from '../../_auth'
-import type { InvRol } from '@/lib/types'
-
-const ROLES: InvRol[] = ['core', 'satelite', 'seguro']
+import { ROLES, TIPOS } from '@/lib/activos'
+import type { InvRol, InvTipoActivo } from '@/lib/types'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const s = await emailDeSesion()
@@ -18,6 +17,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     nombre: b.nombre !== undefined ? String(b.nombre).trim() : actual.nombre,
     peso_objetivo: b.peso_objetivo !== undefined ? Math.min(100, Math.max(0, num(b.peso_objetivo))) : actual.peso_objetivo,
     rol: ROLES.includes(b.rol) ? (b.rol as InvRol) : actual.rol,
+    tipo: TIPOS.includes(b.tipo) ? (b.tipo as InvTipoActivo) : actual.tipo,
+    moneda: b.moneda === 'USD' || b.moneda === 'ARS' ? b.moneda : actual.moneda,
     activo: b.activo !== undefined ? !!b.activo : actual.activo,
   }
   await updateInvPosicion(p)
