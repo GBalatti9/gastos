@@ -198,6 +198,7 @@ git push -u origin main
 | `/api/cron/recurrentes` | 09:00 UTC (06:00 ART) | Genera las cuotas del mes actual y el siguiente de los gastos recurrentes (idempotente) |
 | `/api/cron/recordatorios` | 12:00 UTC (09:00 ART) | Email con las cuotas que vencen en 7 días |
 | `/api/cron/recordatorio-carga` | 00:00 UTC (21:00 ART) | Si ese día no cargaste ningún gasto: push al celular, o email si no tenés push |
+| `/api/cron/inversion-alertas` | 00:30 UTC (21:30 ART) | Inversión: fin de mes sin aporte, o cobro extra sin invertir (push o email) |
 
 ### 7.4 Instalar en el celular (PWA)
 Abrí la app en el navegador del teléfono → Ajustes → "Instalar en el celular". En iPhone es Safari → Compartir → Agregar a inicio. Una vez instalada, activá "Recordatorios" en Ajustes para recibir las notificaciones push.

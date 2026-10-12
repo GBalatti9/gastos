@@ -5,6 +5,7 @@ import { CuotaPagadaEmail } from '@/emails/cuota-pagada'
 import { GastoCanceladoEmail } from '@/emails/gasto-cancelado'
 import { RecordatorioEmail } from '@/emails/recordatorio'
 import { RecordatorioCargaEmail } from '@/emails/recordatorio-carga'
+import { InversionAlertaEmail, type AlertaEmail } from '@/emails/inversion-alerta'
 import { Gasto, Pago, ProximoVencimiento } from './types'
 import { AppUser } from './users'
 
@@ -85,6 +86,16 @@ export async function enviarEmailRecordatorioCarga(destinatario: AppUser, url: s
     from: FROM,
     to: destinatario.email,
     subject: '📝 ¿Gastaste algo hoy? Todavía no cargaste nada',
+    html,
+  })
+}
+
+export async function enviarEmailInversionAlerta(destinatario: AppUser, alertas: AlertaEmail[]) {
+  const html = await render(InversionAlertaEmail({ destinatario, alertas }))
+  await getResend().emails.send({
+    from: FROM,
+    to: destinatario.email,
+    subject: `📈 ${alertas[0]?.titulo || 'Alerta de inversión'}`,
     html,
   })
 }
