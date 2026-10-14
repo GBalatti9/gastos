@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getInvAportes, createInvAporte, getInvPosiciones, getInvMetas } from '@/lib/google-sheets'
 import { getTipoCambioHoy } from '@/lib/tipo-cambio'
-import { getPrecios, tienePrecioAuto, unidadesPorMonto } from '@/lib/precios'
 import { hoyAR } from '@/lib/dates'
 import { emailDeSesion, num } from '../_auth'
+import { normalizarMontos, redondearUnidades, unidadesAuto } from './_calculo'
 
 export async function GET() {
   const s = await emailDeSesion()
@@ -22,11 +22,8 @@ export async function POST(req: NextRequest) {
   const b = await req.json()
 
   const tipo_cambio = num(b.tipo_cambio) > 0 ? num(b.tipo_cambio) : await getTipoCambioHoy()
-  let monto_usd = num(b.monto_usd)
-  let monto_ars = num(b.monto_ars)
-  if (monto_usd <= 0 && monto_ars > 0 && tipo_cambio > 0) monto_usd = monto_ars / tipo_cambio
-  if (monto_ars <= 0 && monto_usd > 0) monto_ars = monto_usd * tipo_cambio
-  if (monto_usd <= 0) return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
+  const montos = normalizarMontos(b, tipo_cambio)
+  if (!montos) return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
 
   const [metas, posiciones] = await Promise.all([getInvMetas(s.email), getInvPosiciones(s.email)])
   const meta_id = String(b.meta_id || metas[0]?.id || '')
@@ -36,24 +33,20 @@ export async function POST(req: NextRequest) {
 
   let unidades = num(b.unidades)
   let precio = num(b.precio)
-  if (unidades <= 0 && tienePrecioAuto(posicion)) {
-    const p = (await getPrecios([posicion])).get(posicion.id)
-    if (p) {
-      unidades = unidadesPorMonto(monto_usd, p, tipo_cambio)
-      precio = p.precio
-    }
+  if (unidades <= 0) {
+    const auto = await unidadesAuto(posicion, montos.monto_usd, tipo_cambio)
+    if (auto) ({ unidades, precio } = auto)
   }
 
   const aporte = await createInvAporte({
     email: s.email,
     fecha: String(b.fecha || hoyAR()).slice(0, 10),
-    monto_usd: Math.round(monto_usd * 100) / 100,
-    monto_ars: Math.round(monto_ars),
+    ...montos,
     tipo_cambio,
     posicion_id: posicion.id,
     cobro_id: String(b.cobro_id || ''),
     notas: String(b.notas || ''),
-    unidades: Math.round(unidades * 1e6) / 1e6,
+    unidades: redondearUnidades(unidades),
     precio,
     meta_id,
   })
