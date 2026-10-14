@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +16,7 @@ import { hoyAR } from '@/lib/dates'
 import { unidadesPorMonto, type Precio } from '@/lib/precios'
 import { TIPO_LABEL, UNIDAD_LABEL } from '@/lib/activos'
 import type { DestinoAporte } from '@/lib/inversion'
-import type { InvPosicion } from '@/lib/types'
+import type { InvAporte, InvPosicion } from '@/lib/types'
 
 export interface PrefillAporte {
   monto_usd?: number
@@ -31,21 +32,30 @@ interface Props {
   precios: Record<string, Precio>
   tc: number
   prefill?: PrefillAporte
+  /** Si viene, el diálogo edita ese aporte en vez de crear uno nuevo. */
+  aporte?: InvAporte
 }
+
+/** Número en formato es-AR (coma decimal) para que `parseMonto` lo lea igual. */
+const aInput = (n: number) => (n > 0 ? String(n).replace('.', ',') : '')
 
 /**
  * El padre lo monta con una `key` nueva cada vez que lo abre, así el estado
  * inicial (monto sugerido, TC, posición destino) sale fresco de las props.
  */
-export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, precios, tc, prefill }: Props) {
+export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, precios, tc, prefill, aporte }: Props) {
   const router = useRouter()
-  const activas = posiciones.filter((p) => p.activo)
+  const editando = !!aporte
+  // Al editar, la posición del aporte aparece aunque ya esté dada de baja.
+  const activas = posiciones.filter((p) => p.activo || p.id === aporte?.posicion_id)
   const [loading, setLoading] = useState(false)
   const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD')
-  const [monto, setMonto] = useState(prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '')
-  const [tcInput, setTcInput] = useState('')
-  const [posicionId, setPosicionId] = useState(destino?.posicion.id || activas[0]?.id || '')
-  const [fecha, setFecha] = useState(hoyAR())
+  const [monto, setMonto] = useState(
+    aporte ? aInput(aporte.monto_usd) : prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '',
+  )
+  const [tcInput, setTcInput] = useState(aporte ? aInput(aporte.tipo_cambio) : '')
+  const [posicionId, setPosicionId] = useState(aporte?.posicion_id || destino?.posicion.id || activas[0]?.id || '')
+  const [fecha, setFecha] = useState(aporte?.fecha || hoyAR())
   const [unidadesInput, setUnidadesInput] = useState('')
 
   const montoNum = parseMonto(monto)
@@ -66,8 +76,8 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
     }
     setLoading(true)
     try {
-      const res = await fetch('/api/inversion/aportes', {
-        method: 'POST',
+      const res = await fetch(editando ? `/api/inversion/aportes/${aporte.id}` : '/api/inversion/aportes', {
+        method: editando ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           meta_id: metaId,
@@ -78,16 +88,33 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
           fecha,
           cobro_id: prefill?.cobro_id || '',
           unidades: unidadesInput ? parseMonto(unidadesInput) : undefined,
-          precio: precio?.precio,
+          // Al editar, el server conserva el precio de compra original.
+          precio: editando ? undefined : precio?.precio,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
-      toast.success(`Aporte de ${fmtUSD(montoUsd)} a ${posicion?.ticker || posicion?.nombre || ''} registrado`)
+      toast.success(`Aporte de ${fmtUSD(montoUsd)} a ${posicion?.ticker || posicion?.nombre || ''} ${editando ? 'actualizado' : 'registrado'}`)
       onOpenChange(false)
       router.refresh()
     } catch (err) {
-      toast.error((err as Error).message || 'Error al registrar el aporte')
+      toast.error((err as Error).message || 'Error al guardar el aporte')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function borrar() {
+    if (!aporte) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/inversion/aportes/${aporte.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Aporte borrado')
+      onOpenChange(false)
+      router.refresh()
+    } catch {
+      toast.error('No se pudo borrar el aporte')
     } finally {
       setLoading(false)
     }
@@ -97,8 +124,8 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
     <ModalResponsive
       open={open}
       onOpenChange={onOpenChange}
-      titulo="Registrar aporte"
-      descripcion="Se guarda en dólares al tipo de cambio del día."
+      titulo={editando ? 'Editar aporte' : 'Registrar aporte'}
+      descripcion={editando ? 'Corregí monto, moneda, dólar, fecha o posición.' : 'Se guarda en dólares al tipo de cambio del día.'}
     >
       <form onSubmit={guardar} className="flex flex-col gap-4">
         <FieldGroup className="gap-4">
@@ -118,7 +145,7 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
               id="aporte-monto"
               inputMode="decimal"
               placeholder="0"
-              autoFocus
+              autoFocus={!editando}
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
               className="h-12 text-2xl font-semibold tabular-nums md:h-10 md:text-lg"
@@ -175,7 +202,11 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
               <Input
                 id="aporte-unidades"
                 inputMode="decimal"
-                placeholder={unidadesAuto > 0 ? `≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 2 })} con el precio de hoy` : 'Cuántas compraste'}
+                placeholder={
+                  editando && aporte.unidades > 0 && posicionId === aporte.posicion_id
+                    ? `Antes ${aporte.unidades.toLocaleString('es-AR', { maximumFractionDigits: 4 })} · vacío = ajusta al nuevo monto`
+                    : unidadesAuto > 0 ? `≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 2 })} con el precio de hoy` : 'Cuántas compraste'
+                }
                 value={unidadesInput}
                 onChange={(e) => setUnidadesInput(e.target.value)}
                 className="h-11 w-full min-w-0 text-base tabular-nums md:h-9 md:text-sm"
@@ -192,8 +223,14 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
         <div className="sticky bottom-0 -mx-1 bg-gradient-to-t from-popover via-popover/95 to-transparent px-1 pt-3">
           <Button type="submit" size="lg" className="h-12 w-full" disabled={loading || montoUsd <= 0 || !posicionId || tcNum <= 0}>
             {loading && <Spinner data-icon="inline-start" />}
-            Confirmar aporte{montoUsd > 0 ? ` de ${fmtUSD(montoUsd)}` : ''}
+            {editando ? 'Guardar cambios' : 'Confirmar aporte'}{montoUsd > 0 ? ` de ${fmtUSD(montoUsd)}` : ''}
           </Button>
+          {editando && (
+            <Button type="button" variant="ghost" className="mt-1 h-11 w-full text-destructive hover:text-destructive" disabled={loading} onClick={borrar}>
+              <Trash2 data-icon="inline-start" />
+              Borrar aporte
+            </Button>
+          )}
         </div>
       </form>
     </ModalResponsive>
