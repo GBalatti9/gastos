@@ -49,9 +49,10 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
   // Al editar, la posición del aporte aparece aunque ya esté dada de baja.
   const activas = posiciones.filter((p) => p.activo || p.id === aporte?.posicion_id)
   const [loading, setLoading] = useState(false)
-  const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD')
+  // Por defecto en pesos; el prefill de un cobro viene calculado en dólares.
+  const [moneda, setMoneda] = useState<'USD' | 'ARS'>(!aporte && prefill?.monto_usd ? 'USD' : 'ARS')
   const [monto, setMonto] = useState(
-    aporte ? aInput(aporte.monto_usd) : prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '',
+    aporte ? aInput(aporte.monto_ars) : prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '',
   )
   const [tcInput, setTcInput] = useState(aporte ? aInput(aporte.tipo_cambio) : '')
   const [posicionId, setPosicionId] = useState(aporte?.posicion_id || destino?.posicion.id || activas[0]?.id || '')
