@@ -608,20 +608,19 @@ export async function getInvAportes(email: string): Promise<InvAporte[]> {
     }))
 }
 
+const invAporteToRow = (a: InvAporte) => [
+  a.id, a.email, a.fecha, a.monto_usd, a.monto_ars, a.tipo_cambio, a.posicion_id, a.cobro_id, a.notas,
+  a.unidades, a.precio, a.meta_id,
+]
+
 export async function createInvAporte(data: Omit<InvAporte, 'id'>): Promise<InvAporte> {
-  const id = Date.now().toString()
-  await agregarFilas('inv_aportes!A:L', [[
-    id, data.email, data.fecha, data.monto_usd, data.monto_ars, data.tipo_cambio, data.posicion_id, data.cobro_id, data.notas,
-    data.unidades, data.precio, data.meta_id,
-  ]])
-  return { ...data, id }
+  const aporte = { ...data, id: Date.now().toString() }
+  await agregarFilas('inv_aportes!A:L', [invAporteToRow(aporte)])
+  return aporte
 }
 
 export async function updateInvAporte(a: InvAporte): Promise<boolean> {
-  return escribirFilaPorClave('inv_aportes', 'L', a.id, [
-    a.id, a.email, a.fecha, a.monto_usd, a.monto_ars, a.tipo_cambio, a.posicion_id, a.cobro_id, a.notas,
-    a.unidades, a.precio, a.meta_id,
-  ])
+  return escribirFilaPorClave('inv_aportes', 'L', a.id, invAporteToRow(a))
 }
 
 export async function deleteInvAporte(id: string): Promise<void> {

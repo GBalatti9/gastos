@@ -102,8 +102,8 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
     router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
 
-  function abrirAporte(p?: PrefillAporte, editar?: InvAporte) {
-    setPrefill(p)
+  function abrirAporte({ prefill, editar }: { prefill?: PrefillAporte; editar?: InvAporte } = {}) {
+    setPrefill(prefill)
     setAporteEditando(editar)
     setAporteKey((k) => k + 1)
     setAporteOpen(true)
@@ -112,7 +112,7 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
   function onCobroGuardado(cobro: InvCobro, sugerencias: { meta_id: string; sugerencia: Sugerencia }[], registrarAporte: boolean) {
     const deEsta = sugerencias.find((s) => s.meta_id === meta?.id)?.sugerencia
     if (registrarAporte && deEsta && deEsta.total_usd > 0) {
-      abrirAporte({ monto_usd: deEsta.total_usd, cobro_id: cobro.id })
+      abrirAporte({ prefill: { monto_usd: deEsta.total_usd, cobro_id: cobro.id } })
     }
   }
 
@@ -207,7 +207,7 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
           />
         </TabsContent>
         <TabsContent value="historial">
-          <HistorialChart serie={resumen.serie} cobros={datos.cobros} aportes={datos.aportes} posiciones={datos.posiciones} onEditarAporte={(a) => abrirAporte(undefined, a)} />
+          <HistorialChart serie={resumen.serie} cobros={datos.cobros} aportes={datos.aportes} posiciones={datos.posiciones} onEditarAporte={(a) => abrirAporte({ editar: a })} />
         </TabsContent>
         <TabsContent value="escenarios">
           <Escenarios

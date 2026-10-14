@@ -37,9 +37,9 @@ export function HistorialChart({ serie, cobros, aportes, posiciones, onEditarApo
   const posNombre = (id: string) => { const p = posiciones.find((p) => p.id === id); return p ? p.ticker || p.nombre : '—' }
 
   const movimientos = React.useMemo(() => {
-    const items = [
-      ...aportes.map((a) => ({ fecha: a.fecha, tipo: 'aporte' as const, texto: `Aporte a ${posNombre(a.posicion_id)}`, usd: a.monto_usd, ars: a.monto_ars, aporte: a })),
-      ...cobros.map((c) => ({ fecha: c.fecha, tipo: 'cobro' as const, aporte: undefined, texto: c.tipo === 'base' ? 'Cobro base' : 'Cobro extra', usd: c.tipo_cambio > 0 ? c.monto_ars / c.tipo_cambio : 0, ars: c.monto_ars })),
+    const items: { key: string; fecha: string; tipo: 'aporte' | 'cobro'; texto: string; usd: number; ars: number; aporte?: InvAporte }[] = [
+      ...aportes.map((a) => ({ key: `a-${a.id}`, fecha: a.fecha, tipo: 'aporte' as const, texto: `Aporte a ${posNombre(a.posicion_id)}`, usd: a.monto_usd, ars: a.monto_ars, aporte: a })),
+      ...cobros.map((c) => ({ key: `c-${c.id}`, fecha: c.fecha, tipo: 'cobro' as const, texto: c.tipo === 'base' ? 'Cobro base' : 'Cobro extra', usd: c.tipo_cambio > 0 ? c.monto_ars / c.tipo_cambio : 0, ars: c.monto_ars })),
     ]
     return items.sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 30)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,35 +124,33 @@ export function HistorialChart({ serie, cobros, aportes, posiciones, onEditarApo
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {movimientos.length === 0 && <p className="text-sm text-muted-foreground">Sin cobros ni aportes todavía.</p>}
-          {movimientos.length > 0 && onEditarAporte && aportes.length > 0 && (
+          {onEditarAporte && aportes.length > 0 && (
             <p className="text-xs text-muted-foreground">Tocá un aporte para corregirlo o borrarlo.</p>
           )}
-          {movimientos.map((m, i) => {
-            const contenido = (
-              <>
+          {movimientos.map((m) => {
+            const { aporte } = m
+            const editar = aporte && onEditarAporte ? () => onEditarAporte(aporte) : undefined
+            const Fila = editar ? 'button' : 'div'
+            return (
+              <Fila
+                key={m.key}
+                type={editar ? 'button' : undefined}
+                onClick={editar}
+                className={cn(
+                  'flex items-center justify-between gap-3 text-sm',
+                  editar && '-mx-2 rounded-md px-2 py-1 text-left hover:bg-muted active:bg-muted',
+                )}
+              >
                 <div className="flex min-w-0 items-center gap-2">
                   <Badge variant={m.tipo === 'aporte' ? 'default' : 'secondary'}>{m.tipo}</Badge>
                   <span className="truncate">{m.texto}</span>
-                  {m.aporte && onEditarAporte && <Pencil className="size-3.5 shrink-0 text-muted-foreground" />}
+                  {editar && <Pencil className="size-3.5 shrink-0 text-muted-foreground" />}
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
                   <p className="font-medium">{fmtUSD(m.usd)}</p>
                   <p className="text-xs text-muted-foreground">{fmtFecha(m.fecha)}</p>
                 </div>
-              </>
-            )
-            const aporte = m.aporte
-            return aporte && onEditarAporte ? (
-              <button
-                key={i}
-                type="button"
-                onClick={() => onEditarAporte(aporte)}
-                className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-1 text-left text-sm hover:bg-muted active:bg-muted"
-              >
-                {contenido}
-              </button>
-            ) : (
-              <div key={i} className="flex items-center justify-between gap-3 text-sm">{contenido}</div>
+              </Fila>
             )
           })}
         </CardContent>

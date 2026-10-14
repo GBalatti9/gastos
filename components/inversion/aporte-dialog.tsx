@@ -7,6 +7,10 @@ import { Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { OpcionesToggle } from '@/components/gastos/opciones-toggle'
@@ -49,10 +53,11 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
   // Al editar, la posición del aporte aparece aunque ya esté dada de baja.
   const activas = posiciones.filter((p) => p.activo || p.id === aporte?.posicion_id)
   const [loading, setLoading] = useState(false)
-  // Por defecto en pesos; el prefill de un cobro viene calculado en dólares.
-  const [moneda, setMoneda] = useState<'USD' | 'ARS'>(!aporte && prefill?.monto_usd ? 'USD' : 'ARS')
+  // Por defecto en pesos. El prefill de un cobro viene en dólares, y un aporte viejo sin pesos guardados también.
+  const enUsd = aporte ? !(aporte.monto_ars > 0) : !!prefill?.monto_usd
+  const [moneda, setMoneda] = useState<'USD' | 'ARS'>(enUsd ? 'USD' : 'ARS')
   const [monto, setMonto] = useState(
-    aporte ? aInput(aporte.monto_ars) : prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '',
+    aporte ? aInput(enUsd ? aporte.monto_usd : aporte.monto_ars) : prefill?.monto_usd ? String(Math.round(prefill.monto_usd)) : '',
   )
   const [tcInput, setTcInput] = useState(aporte ? aInput(aporte.tipo_cambio) : '')
   const [posicionId, setPosicionId] = useState(aporte?.posicion_id || destino?.posicion.id || activas[0]?.id || '')
@@ -68,6 +73,10 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
   const unidadesAuto = precio && montoUsd > 0 ? unidadesPorMonto(montoUsd, precio, tcNum) : 0
   const unidadLabel = posicion ? UNIDAD_LABEL[posicion.tipo] : ''
   const muestraUnidades = !!posicion && posicion.tipo !== 'dolares' && posicion.tipo !== 'plazo_fijo'
+  const placeholderUnidades =
+    aporte && aporte.unidades > 0 && posicionId === aporte.posicion_id
+      ? `Antes ${aporte.unidades.toLocaleString('es-AR', { maximumFractionDigits: 4 })} · vacío = ajusta al nuevo monto`
+      : unidadesAuto > 0 ? `≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 2 })} con el precio de hoy` : 'Cuántas compraste'
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
@@ -89,8 +98,7 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
           fecha,
           cobro_id: prefill?.cobro_id || '',
           unidades: unidadesInput ? parseMonto(unidadesInput) : undefined,
-          // Al editar, el server conserva el precio de compra original.
-          precio: editando ? undefined : precio?.precio,
+          precio: precio?.precio,
         }),
       })
       const data = await res.json()
@@ -203,11 +211,7 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
               <Input
                 id="aporte-unidades"
                 inputMode="decimal"
-                placeholder={
-                  editando && aporte.unidades > 0 && posicionId === aporte.posicion_id
-                    ? `Antes ${aporte.unidades.toLocaleString('es-AR', { maximumFractionDigits: 4 })} · vacío = ajusta al nuevo monto`
-                    : unidadesAuto > 0 ? `≈ ${unidadesAuto.toLocaleString('es-AR', { maximumFractionDigits: 2 })} con el precio de hoy` : 'Cuántas compraste'
-                }
+                placeholder={placeholderUnidades}
                 value={unidadesInput}
                 onChange={(e) => setUnidadesInput(e.target.value)}
                 className="h-11 w-full min-w-0 text-base tabular-nums md:h-9 md:text-sm"
@@ -227,10 +231,22 @@ export function AporteDialog({ open, onOpenChange, metaId, posiciones, destino, 
             {editando ? 'Guardar cambios' : 'Confirmar aporte'}{montoUsd > 0 ? ` de ${fmtUSD(montoUsd)}` : ''}
           </Button>
           {editando && (
-            <Button type="button" variant="ghost" className="mt-1 h-11 w-full text-destructive hover:text-destructive" disabled={loading} onClick={borrar}>
-              <Trash2 data-icon="inline-start" />
-              Borrar aporte
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button type="button" variant="ghost" className="mt-1 h-11 w-full text-destructive hover:text-destructive" disabled={loading} />}>
+                <Trash2 data-icon="inline-start" />
+                Borrar aporte
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Borrar este aporte?</AlertDialogTitle>
+                  <AlertDialogDescription>Se saca de la planilla y deja de contar en la cartera. No se puede deshacer.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={borrar}>Borrar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </form>
