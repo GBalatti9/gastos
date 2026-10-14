@@ -617,6 +617,13 @@ export async function createInvAporte(data: Omit<InvAporte, 'id'>): Promise<InvA
   return { ...data, id }
 }
 
+export async function updateInvAporte(a: InvAporte): Promise<boolean> {
+  return escribirFilaPorClave('inv_aportes', 'L', a.id, [
+    a.id, a.email, a.fecha, a.monto_usd, a.monto_ars, a.tipo_cambio, a.posicion_id, a.cobro_id, a.notas,
+    a.unidades, a.precio, a.meta_id,
+  ])
+}
+
 export async function deleteInvAporte(id: string): Promise<void> {
   await escribirFilaPorClave('inv_aportes', 'L', id, null)
 }

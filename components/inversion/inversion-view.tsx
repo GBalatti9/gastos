@@ -83,6 +83,7 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
   const [valuacionesOpen, setValuacionesOpen] = useState(false)
   const [aporteKey, setAporteKey] = useState(0)
   const [prefill, setPrefill] = useState<PrefillAporte | undefined>(undefined)
+  const [aporteEditando, setAporteEditando] = useState<InvAporte | undefined>(undefined)
   const [dialogKey, setDialogKey] = useState(0)
   const bump = () => setDialogKey((k) => k + 1)
 
@@ -101,8 +102,9 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
     router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
 
-  function abrirAporte(p?: PrefillAporte) {
+  function abrirAporte(p?: PrefillAporte, editar?: InvAporte) {
     setPrefill(p)
+    setAporteEditando(editar)
     setAporteKey((k) => k + 1)
     setAporteOpen(true)
   }
@@ -205,7 +207,7 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
           />
         </TabsContent>
         <TabsContent value="historial">
-          <HistorialChart serie={resumen.serie} cobros={datos.cobros} aportes={datos.aportes} posiciones={datos.posiciones} />
+          <HistorialChart serie={resumen.serie} cobros={datos.cobros} aportes={datos.aportes} posiciones={datos.posiciones} onEditarAporte={(a) => abrirAporte(undefined, a)} />
         </TabsContent>
         <TabsContent value="escenarios">
           <Escenarios
@@ -250,6 +252,7 @@ function InversionViewInner({ datos }: { datos: DatosInversion }) {
         precios={datos.precios}
         tc={datos.tc}
         prefill={prefill}
+        aporte={aporteEditando}
       />
       <PosicionesDialog key={`pos-${dialogKey}`} open={posicionesOpen} onOpenChange={setPosicionesOpen} posiciones={datos.posiciones} metaId={meta.id} />
       <ValuacionesDialog key={`val-${dialogKey}`} open={valuacionesOpen} onOpenChange={setValuacionesOpen} porPosicion={resumen.cartera.porPosicion} />
