@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { parseMonto } from '@/lib/format'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -47,7 +48,7 @@ export function SaldarDeuda({
 
   if (!hayDeuda) return null
 
-  const montoNumerico = parseFloat(montoInput.replace(/[^\d.,]/g, '').replace(',', '.')) || 0
+  const montoNumerico = parseMonto(montoInput)
   const montoValido = montoNumerico > 0 && montoNumerico <= deudaActual
   const simbolo = moneda === 'USD' ? 'U$S' : '$'
 
