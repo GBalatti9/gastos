@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { parseMonto } from '@/lib/format'
 import { es } from 'date-fns/locale'
 import { CreditCard } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -74,7 +75,7 @@ export function NuevoGastoForm({
   }
 
   // ─── Calculations ───────────────────────────────────────────────────────
-  const montoTotal = parseFloat(form.monto_total.replace(/[^\d.,]/g, '').replace(',', '.')) || 0
+  const montoTotal = parseMonto(form.monto_total)
   const numCuotas = parseInt(form.cuotas) || 1
   const montoCuota = montoTotal > 0 ? montoTotal / numCuotas : 0
   const yoSoyPagador = form.pagado_por === usuarioEmail
@@ -113,7 +114,7 @@ export function NuevoGastoForm({
       const res = await fetch('/api/gastos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, monto_total: montoTotal }),
       })
       if (!res.ok) throw new Error('Error al guardar')
       const { gasto } = await res.json()

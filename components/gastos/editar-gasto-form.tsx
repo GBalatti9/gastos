@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { parseMonto } from '@/lib/format'
 import { es } from 'date-fns/locale'
 import { CreditCard } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -71,7 +72,7 @@ export function EditarGastoForm({
   }
 
   // ─── Calculations ───────────────────────────────────────────────────────
-  const montoTotal = parseFloat(form.monto_total.replace(/[^\d.,]/g, '').replace(',', '.')) || 0
+  const montoTotal = parseMonto(form.monto_total)
   const montoCuota = montoTotal > 0 ? montoTotal / gasto.cuotas : 0
   const yoSoyPagador = form.pagado_por === usuarioEmail
   const isCredito = form.metodo_pago === 'credito'
@@ -109,7 +110,7 @@ export function EditarGastoForm({
       const res = await fetch(`/api/gastos/${gasto.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, monto_total: montoTotal }),
       })
       if (!res.ok) throw new Error()
       const { gasto: gastoActualizado } = await res.json()

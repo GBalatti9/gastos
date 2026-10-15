@@ -20,12 +20,13 @@ export const fmtFecha = (ymd: string) => {
   return format(new Date(y, m - 1, d), 'd MMM yyyy', { locale: es })
 }
 
-/** Parsea lo que tipea el usuario: "1.234,56" o "1234.56" → 1234.56 */
+/** Parsea lo que tipea el usuario: "1.234,56", "460.000" o "1234.56" → número */
 export function parseMonto(s: string): number {
   const limpio = s.replace(/[^\d.,-]/g, '')
   if (!limpio) return 0
-  // Si tiene coma, asumimos formato es-AR (punto = miles, coma = decimal)
-  const normal = limpio.includes(',') ? limpio.replace(/\./g, '').replace(',', '.') : limpio
+  // Con coma, o con puntos agrupando de a tres ("460.000"), es formato es-AR: punto = miles
+  const esAR = limpio.includes(',') || /^-?\d{1,3}(\.\d{3})+$/.test(limpio)
+  const normal = esAR ? limpio.replace(/\./g, '').replace(',', '.') : limpio
   const n = parseFloat(normal)
   return Number.isFinite(n) ? n : 0
 }
