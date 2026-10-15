@@ -33,6 +33,43 @@ async function leerFilas(range: string): Promise<string[][]> {
   return ((res.data.values || []) as unknown[][]).map(r => r.map(c => (c === null || c === undefined ? '' : String(c))))
 }
 
+/**
+ * Agrega filas al final de una hoja, empezando en la columna del rango ("hoja!A:Q").
+ * No usa `values.append`: Sheets adivina dónde está "la tabla" y a veces pegaba la
+ * fila corrida de columna (en `gastos` arrancaban en Q y la app no las veía).
+ */
+async function agregarFilas(range: string, rows: (string | number)[][]): Promise<void> {
+  if (rows.length === 0) return
+  const [hoja, cols] = range.split('!')
+  const [desde, hasta] = cols.split(':')
+  const primera = (await leerFilas(hoja)).length + 1
+  const escribir = () => getSheets().spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${hoja}!${desde}${primera}:${hasta}${primera + rows.length - 1}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: rows },
+  })
+  try {
+    await escribir()
+  } catch (err) {
+    // A diferencia de append, update no agranda la hoja: si se llenó, se le suman filas y se reintenta.
+    if (!String((err as Error).message).includes('exceeds grid limits')) throw err
+    await agrandarHoja(hoja, rows.length + 500)
+    await escribir()
+  }
+}
+
+async function agrandarHoja(hoja: string, filas: number): Promise<void> {
+  const sheets = getSheets()
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: 'sheets.properties(sheetId,title)' })
+  const sheetId = meta.data.sheets?.find(s => s.properties?.title === hoja)?.properties?.sheetId
+  if (sheetId == null) throw new Error(`Hoja ${hoja} no encontrada`)
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: { requests: [{ appendDimension: { sheetId, dimension: 'ROWS', length: filas } }] },
+  })
+}
+
 
 // ─── Gastos ───────────────────────────────────────────────────────────────────
 
@@ -47,7 +84,6 @@ export async function getGastoById(id: string): Promise<Gasto | null> {
 }
 
 export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
-  const sheets = getSheets()
   const nextId = Date.now().toString()
 
   const row = [
@@ -70,13 +106,7 @@ export async function createGasto(data: Omit<Gasto, 'id'>): Promise<Gasto> {
     data.creado_por || '',
   ]
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'gastos!A:Q',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [row] },
-  })
+  await agregarFilas('gastos!A:Q', [row])
 
   return { ...data, id: nextId }
 }
@@ -167,7 +197,6 @@ export async function getPagosByGastoId(gastoId: string): Promise<Pago[]> {
 
 export async function createPagos(pagos: Omit<Pago, 'id'>[]): Promise<void> {
   if (pagos.length === 0) return
-  const sheets = getSheets()
   let nextId = Date.now()
 
   const rows = pagos.map(p => [
@@ -181,13 +210,7 @@ export async function createPagos(pagos: Omit<Pago, 'id'>[]): Promise<void> {
     p.estado,
   ])
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'pagos!A:H',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: rows },
-  })
+  await agregarFilas('pagos!A:H', rows)
 }
 
 export async function marcarPagoComoPagado(
@@ -228,7 +251,6 @@ export async function getCategorias(): Promise<Categoria[]> {
 }
 
 export async function initCategorias(): Promise<void> {
-  const sheets = getSheets()
   const categorias = await getCategorias()
   if (categorias.length > 0) return
 
@@ -245,27 +267,16 @@ export async function initCategorias(): Promise<void> {
     ['10', 'Otros', '#6b7280', '📦'],
   ]
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'categorias!A:D',
-    valueInputOption: 'RAW',
-    requestBody: { values: defaultCats },
-  })
+  await agregarFilas('categorias!A:D', defaultCats)
 }
 
 export async function createCategoria(data: Omit<Categoria, 'id'>): Promise<Categoria> {
-  const sheets = getSheets()
   const categorias = await getCategorias()
   const nextId = categorias.length > 0
     ? String(Math.max(...categorias.map(c => parseInt(c.id) || 0)) + 1)
     : '1'
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'categorias!A:D',
-    valueInputOption: 'RAW',
-    requestBody: { values: [[nextId, data.nombre, data.color, data.icono]] },
-  })
+  await agregarFilas('categorias!A:D', [[nextId, data.nombre, data.color, data.icono]])
 
   return { ...data, id: nextId }
 }
@@ -287,18 +298,12 @@ export async function getTipoCambioByFecha(fecha: string): Promise<TipoCambio | 
 }
 
 export async function saveTipoCambio(fecha: string, valor: number, fuente: 'bna' | 'manual'): Promise<TipoCambio> {
-  const sheets = getSheets()
 
   // Si ya existe para esa fecha, no sobreescribir (respetar edición manual)
   const existente = await getTipoCambioByFecha(fecha)
   if (existente) return existente
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tipo_cambio!A:C',
-    valueInputOption: 'RAW',
-    requestBody: { values: [[fecha, valor, fuente]] },
-  })
+  await agregarFilas('tipo_cambio!A:C', [[fecha, valor, fuente]])
 
   return { fecha, valor, fuente }
 }
@@ -316,7 +321,6 @@ export async function getTarjetaById(id: string): Promise<TarjetaCredito | null>
 }
 
 export async function createTarjeta(data: Omit<TarjetaCredito, 'id'>): Promise<TarjetaCredito> {
-  const sheets = getSheets()
   const tarjetas = await getTarjetas()
   const nextId = tarjetas.length > 0
     ? String(Math.max(...tarjetas.map(t => parseInt(t.id) || 0)) + 1)
@@ -331,12 +335,7 @@ export async function createTarjeta(data: Omit<TarjetaCredito, 'id'>): Promise<T
     data.owner_email,
   ]
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'tarjetas!A:F',
-    valueInputOption: 'RAW',
-    requestBody: { values: [row] },
-  })
+  await agregarFilas('tarjetas!A:F', [row])
 
   return { ...data, id: nextId }
 }
@@ -404,13 +403,7 @@ export async function savePushSub(sub: PushSub): Promise<void> {
   const rowIndex = rows.findIndex(r => r[1] === sub.endpoint)
 
   if (rowIndex === -1) {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'push_subs!A:F',
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [row] },
-    })
+    await agregarFilas('push_subs!A:F', [row])
     return
   }
   await sheets.spreadsheets.values.update({
@@ -491,16 +484,6 @@ function rowToPago(row: string[]): Pago | null {
 
 import type { InvMeta, InvCobro, InvAporte, InvPosicion, InvValuacion, InvRol, InvTipoCobro, InvTipoActivo } from './types'
 
-async function agregarFilas(range: string, rows: (string | number)[][]): Promise<void> {
-  if (rows.length === 0) return
-  await getSheets().spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range,
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: rows },
-  })
-}
 
 /** Reemplaza la fila cuya columna `colClave` vale `key` (o la borra si `row` es null). */
 async function escribirFilaPorClave(hoja: string, ultimaCol: string, key: string, row: (string | number)[] | null, colClave = 'A'): Promise<boolean> {
